@@ -70,11 +70,11 @@ int main(int argc, const char **argv) {
   // 256x224
   //
 
-  SetDefDrawEnv(&display_environment[0], 0,   0, 320, 240);
+  SetDefDispEnv(&display_environment[0], 0,   0, 320, 240);
   SetDefDrawEnv(&draw_environment[0],    0,   0, 320, 240);
 
-  SetDefDrawEnv(&display_environment[1], 320, 0, 320, 240);
-  SetDefDrawEnv(&draw_environment[1],    0,   0, 320, 240);
+  SetDefDispEnv(&display_environment[1], 320, 0, 320, 240);
+  SetDefDrawEnv(&draw_environment[1],    320, 0, 320, 240);
 
   //
   // While we're setting them up to have the display/draw overlap
@@ -85,8 +85,8 @@ int main(int argc, const char **argv) {
   // point of double buffering, is that it allows us to get increased parallelism by preparing
   // N frames in advance (the GPU can display a frame at the same time to draws into another.)
   //
-  setRGB0(&draw_environment[0], 255, 0, 0);
-  setRGB0(&draw_environment[1], 255, 0, 0);
+  setRGB0(&draw_environment[0], 127, 0, 0);
+  setRGB0(&draw_environment[1], 127, 0, 0);
   draw_environment[0].isbg = 1;
   draw_environment[1].isbg = 1;
 
@@ -107,8 +107,8 @@ int main(int argc, const char **argv) {
     DrawSync(0);
     VSync(0);
 
-    presenting_display_environment = &draw_environment[frame_index];
-    available_draw_environment = &display_environment[frame_index ^ 1];
+    available_draw_environment = &draw_environment[frame_index];
+    presenting_display_environment = &display_environment[frame_index ^ 1];
 
     PutDispEnv(presenting_display_environment);
 
