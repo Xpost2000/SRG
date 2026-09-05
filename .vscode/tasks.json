@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "(Win64) Build Playstation .CUE + .BIN",
+            "type": "shell",
+            "command": "cmd /c build.bat",
+            "group": {
+                "isDefault": true,
+                "kind": "build"
+            }
+        },
+        {
+            "label": "(Win64) Run With PCSX-Reloaded",
+            "type": "shell",
+            "command": "cmd /c pcsx-run.bat",
+            "group": {
+                "isDefault": true,
+                "kind": "build"
+            }
+        }
+    ]
+}
