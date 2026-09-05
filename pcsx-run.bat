@@ -5,7 +5,7 @@
 @echo off
 setlocal
 
-CALL setvars.bar
+CALL setvars.bat
 
 if not exist "run-tree\game.bin" (
   echo Please run build.bat to build the game first.;

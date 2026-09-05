@@ -5,7 +5,7 @@
 @echo off
 setlocal
 
-CALL setvars.bar
+CALL setvars.bat
 
 cmake --preset default .
 cmake --build ./run-tree
