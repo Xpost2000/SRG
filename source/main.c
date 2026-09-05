@@ -111,6 +111,7 @@ int main(int argc, const char **argv) {
     presenting_display_environment = &display_environment[frame_index ^ 1];
 
     PutDispEnv(presenting_display_environment);
+    PutDrawEnv(available_draw_environment);
 
     //
     // ... nothing to draw in draw environment really
