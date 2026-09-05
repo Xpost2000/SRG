@@ -1,0 +1,16 @@
+{
+  "version": "25223.20260902.16.x64",
+  "buildId": 387,
+  "changeset": "b0f97fc4defec63f1196e6e03eb0bd481ac31ce7",
+  "timestamp": 1788334488,
+  "channel": "dev",
+  "updateInfo": [
+    {
+      "channel": "dev",
+      "method": "appdistrib",
+      "updateCatalog": "https://distrib.app/storage/manifests/pcsx-redux/dev-win-cli-x64/manifest.json",
+      "updateInfoBase": "https://distrib.app/storage/manifests/pcsx-redux/dev-win-cli-x64/",
+      "updateStorageUrl": "https://distrib.app/"
+    }
+  ]
+}
