@@ -5,8 +5,7 @@
 @echo off
 setlocal
 
-set PATH=PATH;toolchain-win64\bin;toolchain-win64\cmake-4.4.3-windows-x86_64\bin;
-set PSN00BSDK_LIBS=toolchain-win64\lib\libpsn00b\
+CALL setvars.bar
 
 cmake --preset default .
 cmake --build ./run-tree
