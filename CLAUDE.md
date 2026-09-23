@@ -1,0 +1,106 @@
+# SRG — Simple. Retro. Game.
+
+A PlayStation 1 homebrew game written in C against **PSn00bSDK**, cross-compiled to MIPS
+R3000 and run in the PCSX-Redux emulator. Every dependency — compiler, SDK, CMake, Ninja,
+emulator — is vendored in `toolchain-win64/`, so there is nothing to install.
+
+## Build and run
+
+Run these from the repo root (they work from anywhere; each re-roots itself):
+
+| Command | What it does |
+| --- | --- |
+| `build.bat` | Configures the `default` CMake preset and builds into `run-tree/`, producing `game.bin` + `game.cue`. |
+| `pcsx-run.bat` | Boots `run-tree/game.cue` in PCSX-Redux. Builds first. |
+| `gen-docs.bat` | Regenerates `system-docs/md/` from the PDFs. Only needed if a PDF changes. |
+
+In VS Code: `Ctrl+Shift+B` builds, `Ctrl+F5` builds and runs. Both are tasks in
+`.vscode/tasks.json`; the `Ctrl+F5` binding is user-level (it maps to "Run Test Task") and
+so is not part of this repo.
+
+`setvars.bat` is a shared include that puts the vendored toolchain on `PATH` and sets
+`PSN00BSDK_LIBS`; the other scripts `CALL` it. `run-tree/` is build output and is
+gitignored — never edit anything in there.
+
+IntelliSense is driven by `run-tree/compile_commands.json`, which CMake generates
+automatically. If `#include <psxgpu.h>` starts showing as unresolved, run `build.bat` once
+to regenerate it.
+
+## Layout
+
+| Path | What |
+| --- | --- |
+| `source/` | Game source. Currently just `main.c`. |
+| `system-docs/` | SDK manuals: PDFs plus converted Markdown in `md/`. |
+| `toolchain-win64/` | Vendored GCC MIPS cross-compiler, PSn00bSDK, CMake, Ninja, PCSX-Redux. |
+| `CMakeLists.txt` | Declares the `game` executable and the `iso` CD image target. |
+| `CMakePresets.json` | The `default` preset; points CMake at PSn00bSDK's toolchain file. |
+| `iso.xml` | mkpsxiso CD layout — what files land on the disc. |
+| `system.cnf` | PS1 boot configuration (entry executable, stack address). |
+
+## PS1 essentials
+
+The hardware is small and strange, and most of it is load-bearing when writing code here:
+
+- **CPU:** MIPS R3000A at 33 MHz. **There is no floating-point unit.** The build passes
+  `-msoft-float`, so `float`/`double` still *compile* — they just get emulated in software
+  and are ruinously slow. Use fixed-point arithmetic, and the **GTE** (coprocessor 2) for
+  3D math and matrix work.
+- **Memory:** 2 MB main RAM, 1 MB VRAM, 512 KB sound RAM. VRAM is a 1024×512 16-bit
+  framebuffer that holds *both* your display/draw buffers and all your textures — they
+  compete for the same space.
+- **libc is freestanding.** Only what is in `toolchain-win64/include/libpsn00b/` exists.
+  No `malloc`-heavy idioms, no host OS, no filesystem beyond the CD.
+- **Rendering** is double-buffered: a `DISPENV` (what the video hardware scans out) and a
+  `DRAWENV` (where the GPU draws) per buffer, swapped each frame. Drawing is done by
+  building primitives into an ordering table and handing it to the GPU.
+- **The disc** is ISO9660 with 8.3 filenames; the root directory holds at most 30 entries.
+  Add files via `iso.xml`.
+
+## Where to look things up
+
+Precedence matters here, because two of the three manuals document a *different SDK*:
+
+1. **`toolchain-win64/include/libpsn00b/`** — the actual headers. If a function is not
+   declared here, it does not exist. This is the only authority.
+2. **`system-docs/md/psn00b.md`** — PSn00bSDK's own reference manual.
+3. **`system-docs/md/libref.md`** — Sony's PsyQ per-function reference. PSn00bSDK is
+   *mostly* PsyQ-compatible, so names usually match, but **many functions documented here
+   do not exist in PSn00bSDK**. Always confirm against the headers before using one.
+4. **`system-docs/md/libover47.md`** — Sony's conceptual overview. The best explanation of
+   how the GPU, GTE, SPU and CD subsystems actually work.
+
+These total ~2 MB. **Grep them and read a slice around the hit; never read one whole.**
+Entries begin with the bare function name on its own line, so anchor your search:
+
+```sh
+grep -n "^SetDefDrawEnv$" system-docs/md/libref.md
+grep -rn "SetDefDrawEnv" toolchain-win64/include/libpsn00b/
+```
+
+See `system-docs/md/README.md` for more detail and the conversion's known limitations.
+
+## Code conventions
+
+Follow what `source/main.c` already does:
+
+- **C, not C++.** 2-space indent, K&R braces.
+- `snake_case` for locals and functions; SDK types are uppercase (`DISPENV`, `DRAWENV`,
+  `VECTOR`). Prefer descriptive names (`display_environment`, `frame_index`) over terse ones.
+- Align related declarations and call arguments into columns when it makes a group of
+  related lines easier to scan — `main.c` does this with the `SetDefDispEnv` /
+  `SetDefDrawEnv` calls.
+- **Comment style is the distinctive thing here, and it should be preserved.** The file
+  uses heavy `//` banner blocks that explain *why* something is done and reason about the
+  hardware, not just what the line does. ASCII diagrams are welcome — the VRAM map comment
+  in `main.c` is the model to imitate. When adding code that touches hardware, explain the
+  hardware.
+
+## Gotchas
+
+- **Call both `PutDispEnv()` and `PutDrawEnv()` every frame.** Forgetting `PutDrawEnv` is
+  an easy bug that silently produces a wrong or frozen image (commit `b78f432` was exactly
+  this).
+- `DrawSync(0)` then `VSync(0)` before swapping buffers, or you will tear.
+- The GPU draws asynchronously. Do not touch a primitive buffer the GPU is still reading.
+- Writing `float` anywhere in a hot path is almost always a mistake — see the FPU note above.
