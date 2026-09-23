@@ -18,7 +18,7 @@ struct SaveDummyPayload {
   int z;
 };
 
-static uint8_t iconfile[1024]; // fixed 1024 bytes for the file
+static uint8_t iconfile[CD_SECTOR_SIZE]; // one CD sector
 
 int main(int argc, const char **argv) {
   //
@@ -80,8 +80,9 @@ int main(int argc, const char **argv) {
   //
   filehandle = cd_file_open("\\RES\\SAVICO.TIM");
   if (filehandle.valid) {
-    readcount = cd_file_read_sync_uncached(&filehandle, iconfile, sizeof(iconfile));
-    printf("read %d bytes from icon file\n", readcount);
+    size_t filesize = cd_file_get_size(&filehandle);
+    readcount = cd_file_read_sync_uncached(&filehandle, iconfile, CD_SECTOR_SIZE);
+    printf("read %d bytes from icon file (%d sz)\n", readcount, CD_SECTOR_SIZE);
   } else {
     printf("filehandle not valid?\n");
   }

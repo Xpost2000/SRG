@@ -48,6 +48,13 @@ void            cd_start(void);
 CD_File		cd_file_open(const char* fpath);
 size_t		cd_file_get_size(CD_File* file);
 size_t		cd_file_get_memory_required(CD_File* file);
+size_t          cd_file_get_aligned_size(size_t size);
+//
+// Because this is a low level module
+// this only works if it reads in CD_SECTOR_SIZEs
+//
+// a higher level wrapper needs to be written to support non sector sizes.
+//
 size_t		cd_file_read_sync_uncached(CD_File* file, unsigned char* buffer, size_t size);
 int		cd_is_ready_to_receive_read(int blocking);
 CD_File_Buffer	cd_file_read_uncached(Memory_Arena* arena, CD_File* file);

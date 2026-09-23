@@ -23,7 +23,12 @@ size_t cd_file_get_size(CD_File* file)
 size_t cd_file_get_memory_required(CD_File* file)
 {
   assert(file->valid && "cd_file_get_memory_required given an invalid file.");
-  return (file->file_index.size + 2047) & 0xfffff800;
+  return cd_file_get_aligned_size(file->file_index.size);
+}
+
+size_t cd_file_get_aligned_size(size_t size)
+{
+  return (size + 2047) & 0xfffff800;
 }
 
 static void _cd_file_issue_read(CD_File* file, unsigned char* buffer, size_t size)
