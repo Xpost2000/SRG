@@ -76,6 +76,11 @@ typedef union
 char* get_game_save_name(int port, int id_slot);
 
 void  memory_card_initialize(void);
+
+//
+// NOTE(jerry): when this happens, the gamepad module
+// is turned off. Need to re-enable when it's over.
+//
 void  memory_card_start(void);
 
 //

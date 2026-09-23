@@ -3,11 +3,23 @@
 //
 #include "common.h"
 
+#include "cdfs.h"
+#include "memory_card.h"
 #include "input_pad.h"
 
 #include <psxpad.h>
 #include <psxgpu.h>
 
+typedef struct SaveDummyPayload SaveDummyPayload;
+
+struct SaveDummyPayload {
+  int x;
+  int y;
+  int z;
+  PAD_TO_MEMCARD_BLOCKS(1);
+};
+
+static uint8_t iconfile[192]; // fixed 1024 bytes for the file
 
 int main(int argc, const char **argv) {
   //
@@ -22,13 +34,53 @@ int main(int argc, const char **argv) {
   //
   DISPENV display_environment[2];
   DRAWENV draw_environment[2];
+  char* savename;
                            //
   int     frame_index = 0; // for the double buffer counter
                            //
+
+  //
+  // testing out cdfs and memory card
+  //
+  CD_File filehandle;
+  size_t readcount;
+
   //
   // Initialize the GPU
   //
   ResetGraph(0);
+
+  memory_card_initialize();
+  savename = get_game_save_name(1, 0);
+
+  {
+    memory_card_start();
+
+    printf("looking for memcard file: %s\n", savename);
+    if (memory_card_file_exists(savename)) {
+      SaveDummyPayload payload;
+
+      memory_card_read(savename, &payload, sizeof(payload));
+
+      printf("save file found\n");
+      printf("x: %d, y: %d, z: %d\n", payload.x, payload.y, payload.z);
+    } else {
+      printf("save file not found\n");
+    }
+
+    memory_card_end();
+  }
+
+  //
+  // read the file and hopefully it doesn't look wrong...
+  //
+  filehandle = cd_file_open(".\\RES\\SAVICO.TIM");
+  if (filehandle.valid) {
+    readcount = cd_file_read_sync_uncached(&filehandle, iconfile, sizeof(iconfile));
+    printf("read %d bytes from icon file\n", readcount);
+  } else {
+    printf("filehandle not valid?\n");
+  }
 
   //
   // Initialize the low level input module
@@ -120,10 +172,17 @@ int main(int argc, const char **argv) {
     available_draw_environment = &draw_environment[frame_index];
     presenting_display_environment = &display_environment[frame_index ^ 1];
 
-    {
-      if (input_pad_mask_button_pressed(0, PAD_UP)) {
-	printf("I pressed up!\n");
-      }
+    if (input_pad_mask_button_pressed(0, PAD_UP)) {
+      SaveDummyPayload payload;
+
+      memory_card_start();
+      payload.x = 4;
+      payload.y = 9;
+      payload.z = 12;
+      memory_card_write(savename, iconfile, &payload, sizeof(payload));
+
+      memory_card_end();
+      input_pad_start();
     }
 
     PutDispEnv(presenting_display_environment);

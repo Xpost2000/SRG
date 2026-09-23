@@ -12,7 +12,10 @@ void input_pad_initialize(void)
     &g_padpacket[0], sizeof(g_padpacket[0]),
     &g_padpacket[1], sizeof(g_padpacket[1])
   );
+}
 
+void input_pad_start(void)
+{
               //
   StartPAD(); // Vsync-dependent interrupt handling.
               // NOTE(jerry):

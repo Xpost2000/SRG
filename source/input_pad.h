@@ -17,6 +17,7 @@
  */
 
 void input_pad_initialize(void);
+void input_pad_start(void);
 void input_pad_frame(void);
 int  input_pad_is_valid(int pad_index);
 

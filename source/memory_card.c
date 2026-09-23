@@ -332,7 +332,7 @@ int memory_card_write(char* savefile_name, void* icon_as_tim, void* data, size_t
     _debugprintf("[MEMORY-CARD] Write out game state to card");
     TIM_IMAGE imghdr = {};
     int slot_count = ((sizeof(SIE_MemoryCard_Header) + data_size) + 8191) / MEMCARD_BLOCK_SZ;
-    int is_card_good = check_card_file_exist(savefile_name);
+    int is_card_good = memory_card_file_exists(savefile_name);
     int fd;
 
     if (!is_card_good) {
@@ -366,7 +366,7 @@ int memory_card_read(char* savefile_name, void* data, size_t data_size)
 {
     _debugprintf("[MEMORY-CARD] Read out game state to card");
 
-    int is_card_good = check_card_file_exist(savefile_name);
+    int is_card_good = memory_card_file_exists(savefile_name);
     if (!is_card_good)
     {
         return 0;
@@ -384,7 +384,7 @@ int memory_card_read(char* savefile_name, void* data, size_t data_size)
     return 1; // was able to read
 }
 
-void memory_card_stop(void)
+void memory_card_end(void)
 {
     _debugprintf("[MEMORY-CARD] Stop");
     StopCARD();
