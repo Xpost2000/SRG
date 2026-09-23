@@ -294,24 +294,60 @@ int memory_card_file_exists(char* file)
 
 static void serialize_card(const SIE_MemoryCard_Header* const header, void* data, size_t data_size, int fd)
 {
+  uint8_t block_buffer[MEMCARD_BLOCK_SZ];
   int write_count = 0;
+  int data_write_count = 0;
+  int remaining_data_read_size = data_size;
+  int amount_to_read;
+  int i;
+
+  printf("Trying to write %d bytes\n", data_size + sizeof(header));
+
   write_count += write(fd, header, sizeof(*header));
-  write_count += write(fd, data, data_size);
+
+  for (i = 0; i < header->blockcount; ++i) {
+    int current_write_count;
+    amount_to_read = min(remaining_data_read_size, sizeof(block_buffer));
+
+    memset(block_buffer, 0, sizeof(block_buffer));
+    memcpy(block_buffer, data+remaining_data_read_size, amount_to_read);
+
+    current_write_count = write(fd, block_buffer, sizeof(block_buffer));
+
+    data_write_count += current_write_count;
+    write_count += current_write_count;
+  }
 
   // NOTE (Gabe): If write call size is not multi of 128, something is wrong
   _debugprintf("[MEMORY-CARD] write call: %d bytes (%d blocks)", write_count, header->blockcount);
   assert(((write_count % 128) == 0) && "[MEMORY-CARD] write call failed");
-  assert(((write_count % MEMCARD_BLOCK_SZ) == 0) && "[MEMORY-CARD] failure to write full block");
-  assert(((write_count == header->blockcount * MEMCARD_BLOCK_SZ)) && "[MEMORY-CARD] wrote invalid # of blocks");
+  assert(((data_write_count % MEMCARD_BLOCK_SZ) == 0) && "[MEMORY-CARD] failure to write full block");
+  assert(((data_write_count == header->blockcount * MEMCARD_BLOCK_SZ)) && "[MEMORY-CARD] wrote invalid # of blocks");
 }
 
 static void deserialize_card(void* data, size_t data_size, int fd)
 {
   SIE_MemoryCard_Header header;
-
+  uint8_t block_buffer[MEMCARD_BLOCK_SZ];
   int read_count = 0;
+  int data_read_count = 0;
+  int remaining_data_write_size = data_size;
+  int amount_to_write;
+  int i;
+
+  printf("Trying to read %d bytes (hdr bytes: %d)\n", data_size + sizeof(header), sizeof(header));
+
   read_count += read(fd, &header, sizeof(header));
-  read_count += read(fd, data, data_size);
+
+  for (i = 0; i < header.blockcount; ++i) {
+    int current_read_count = read(fd, &block_buffer[0], sizeof(block_buffer));
+    amount_to_write = min(remaining_data_write_size, sizeof(block_buffer));
+
+    read_count += current_read_count;
+    data_read_count += current_read_count;
+
+    memcpy(data + data_read_count, block_buffer, amount_to_write);
+  }
 
   // Validate header...
   {
@@ -323,8 +359,8 @@ static void deserialize_card(void* data, size_t data_size, int fd)
   // NOTE (Gabe): If read call size is not a multi of 128, something is wrong
   _debugprintf("[MEMORY-CARD] read call: %d bytes (%d blocks) vs. %d", read_count, header.blockcount, MEMCARD_BLOCK_SZ);
   assert(((read_count % 128) == 0) && "[MEMORY-CARD] read call failed");
-  assert(((read_count % MEMCARD_BLOCK_SZ) == 0) && "[MEMORY-CARD] failure to read full block");
-  assert(((read_count == header.blockcount * MEMCARD_BLOCK_SZ)) && "[MEMORY-CARD] read invalid # of blocks");
+  assert(((data_read_count % MEMCARD_BLOCK_SZ) == 0) && "[MEMORY-CARD] failure to read full block");
+  assert(((data_read_count == header.blockcount * MEMCARD_BLOCK_SZ)) && "[MEMORY-CARD] read invalid # of blocks");
 }
 
 int memory_card_write(char* savefile_name, void* icon_as_tim, void* data, size_t data_size)

@@ -16,10 +16,9 @@ struct SaveDummyPayload {
   int x;
   int y;
   int z;
-  PAD_TO_MEMCARD_BLOCKS(1);
 };
 
-static uint8_t iconfile[192]; // fixed 1024 bytes for the file
+static uint8_t iconfile[1024]; // fixed 1024 bytes for the file
 
 int main(int argc, const char **argv) {
   //
