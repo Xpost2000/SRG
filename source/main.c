@@ -91,6 +91,7 @@ int main(int argc, const char **argv) {
   // Initialize the low level input module
   //
   input_pad_initialize();
+  input_pad_start();
 
 
   //
@@ -193,6 +194,7 @@ int main(int argc, const char **argv) {
       printf("wrote save\n");
 
       input_pad_start();
+      printf("I pressed up\n");
     }
 
     PutDispEnv(presenting_display_environment);

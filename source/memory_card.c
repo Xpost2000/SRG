@@ -311,7 +311,7 @@ static void deserialize_card(void* data, size_t data_size, int fd)
 
   int read_count = 0;
   read_count += read(fd, &header, sizeof(header));
-  read_count += read(fd, data, sizeof(data_size));
+  read_count += read(fd, data, data_size);
 
   // Validate header...
   {
@@ -320,8 +320,8 @@ static void deserialize_card(void* data, size_t data_size, int fd)
     assert(strcmp(header.document_name, HEADER_DOCUMENT_NAME) == 0 && "[MEMORY-CARD] invalid game document name.");
   }
 
-    // NOTE (Gabe): If read call size is not a multi of 128, something is wrong
-  _debugprintf("[MEMORY-CARD] read call: %d bytes (%d blocks)", read_count, header.blockcount);
+  // NOTE (Gabe): If read call size is not a multi of 128, something is wrong
+  _debugprintf("[MEMORY-CARD] read call: %d bytes (%d blocks) vs. %d", read_count, header.blockcount, MEMCARD_BLOCK_SZ);
   assert(((read_count % 128) == 0) && "[MEMORY-CARD] read call failed");
   assert(((read_count % MEMCARD_BLOCK_SZ) == 0) && "[MEMORY-CARD] failure to read full block");
   assert(((read_count == header.blockcount * MEMCARD_BLOCK_SZ)) && "[MEMORY-CARD] read invalid # of blocks");
