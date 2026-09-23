@@ -44,6 +44,7 @@ struct CD_File_Buffer {
   size_t   length;
 };
 
+void            cd_start(void);
 CD_File		cd_file_open(const char* fpath);
 size_t		cd_file_get_size(CD_File* file);
 size_t		cd_file_get_memory_required(CD_File* file);

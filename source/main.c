@@ -50,6 +50,11 @@ int main(int argc, const char **argv) {
   //
   ResetGraph(0);
 
+  //
+  // Initialize CD I/O
+  //
+  cd_start();
+
   memory_card_initialize();
   savename = get_game_save_name(1, 0);
 
@@ -74,7 +79,7 @@ int main(int argc, const char **argv) {
   //
   // read the file and hopefully it doesn't look wrong...
   //
-  filehandle = cd_file_open(".\\RES\\SAVICO.TIM");
+  filehandle = cd_file_open("\\RES\\SAVICO.TIM");
   if (filehandle.valid) {
     readcount = cd_file_read_sync_uncached(&filehandle, iconfile, sizeof(iconfile));
     printf("read %d bytes from icon file\n", readcount);
@@ -175,6 +180,8 @@ int main(int argc, const char **argv) {
     if (input_pad_mask_button_pressed(0, PAD_UP)) {
       SaveDummyPayload payload;
 
+      printf("writing save\n");
+
       memory_card_start();
       payload.x = 4;
       payload.y = 9;
@@ -182,6 +189,9 @@ int main(int argc, const char **argv) {
       memory_card_write(savename, iconfile, &payload, sizeof(payload));
 
       memory_card_end();
+
+      printf("wrote save\n");
+
       input_pad_start();
     }
 

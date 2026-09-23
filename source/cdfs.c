@@ -1,5 +1,10 @@
 #include "cdfs.h"
 
+void cd_start(void)
+{
+  CdInit();
+}
+
 CD_File cd_file_open(const char* fpath)
 {
   CD_File result = {};
