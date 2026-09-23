@@ -5,11 +5,16 @@
 @echo off
 setlocal
 
-CALL setvars.bat
+pushd "%~dp0"
+
+CALL "%~dp0setvars.bat"
 
 if not exist "run-tree\game.cue" (
   echo Please run build.bat to build the game first.
+  popd
   exit /b 1
 )
 
 pcsx-redux -fastboot -stdout -run -iso run-tree\game.cue
+
+popd

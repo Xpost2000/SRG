@@ -4,19 +4,30 @@
         {
             "label": "(Win64) Build Playstation .CUE + .BIN",
             "type": "shell",
-            "command": "cmd /c build.bat",
+            "command": "cmd /c \"${workspaceFolder}\\build.bat\"",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
             "group": {
                 "isDefault": true,
                 "kind": "build"
             }
         },
         {
-            "label": "(Win64) Run With PCSX-Reloaded",
+            "label": "(Win64) Run With PCSX-Redux",
             "type": "shell",
-            "command": "cmd /c pcsx-run.bat",
+            "command": "cmd /c \"${workspaceFolder}\\pcsx-run.bat\"",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "(Win64) Build Playstation .CUE + .BIN",
+            "problemMatcher": [],
             "group": {
                 "isDefault": true,
-                "kind": "build"
+                "kind": "test"
             }
         }
     ]
