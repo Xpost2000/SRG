@@ -1,4 +1,5 @@
 #include "memory_card.h"
+#include <psxgpu.h>
 #include <psxapi.h>
 
 // For handling mc status
@@ -330,7 +331,7 @@ int memory_card_write(char* savefile_name, void* icon_as_tim, void* data, size_t
 {
     _debugprintf("[MEMORY-CARD] Write out game state to card");
     TIM_IMAGE imghdr = {};
-    int slot_count = ((sizeof(*game_state_data) + data_size) + 8191) / MEMCARD_BLOCK_SZ;
+    int slot_count = ((sizeof(SIE_MemoryCard_Header) + data_size) + 8191) / MEMCARD_BLOCK_SZ;
     int is_card_good = check_card_file_exist(savefile_name);
     int fd;
 

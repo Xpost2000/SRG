@@ -62,7 +62,7 @@ ${PROJECT_SOURCE_DIR}.
     -->
     <directory_tree>
       <dir name="RES">
-	<file name="SAVICO.TIM" type="data" source="${PROJECT_SOURCE_DIR}/res/savico.tim">
+	<file name="SAVICO.TIM" type="data" source="${PROJECT_SOURCE_DIR}/res/savico.tim"/>
       </dir>
       <file name="SYSTEM.CNF"		type="data" source="${PROJECT_SOURCE_DIR}/system.cnf" />
       <file name="GAME.EXE"	type="data" source="game.exe" />
