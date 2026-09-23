@@ -224,4 +224,33 @@ static int cstring_compare_case_insensitive(char* a, char* b)
   return 1;
 }
 
+static uint64_t djb2_checksum(const void const *data, int size)
+{
+    // djb2 from: https://www.cse.yorku.ca/~oz/hash.html
+    const char *bytes = (const char *)data;
+    uint64_t hash = 5381;
+
+    for (int i = 0; i < size; i++)
+    {
+        hash = ((hash << 5) + hash) + bytes[i];
+    }
+
+    return hash;
+}
+
+// Print out uint64_t as two uint32_t
+static void debug_print_uint64_t(uint64_t x)
+{
+  //
+  // this is an inline type so as to avoid conflicting
+  // with <windows.h>'s QWORD
+  //
+  typedef union {
+    uint32_t words[2];
+    uint64_t qword;
+  } __QWORD;
+  __QWORD qword = (__QWORD){.qword = x};
+  printf("[0] = %x, [1] = %x\n", qword.words[0], qword.words[1]);
+}
+
 #endif

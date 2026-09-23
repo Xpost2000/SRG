@@ -31,7 +31,31 @@
 #define MEMCARD_BLOCK_SZ   (8192) // 8KB
 #define MEMCARD_MAX_BLOCKS (15)
 
+// For handling mc status
+#define IDE_PROCESSING 0x01
+#define READ_PROCESSING 0x01
+#define WRITE_PROCESSING 0x04
+#define TEST_PROCESSING 0x08
+#define TIMEOUT 0x11
+#define ERROR 0x21
+
 typedef struct SIE_MemoryCard_Header SIE_MemoryCard_Header;
+typedef struct Memory_Card_Events Memory_Card_Events;
+
+struct Memory_Card_Events {
+  int write_complete;
+  int new_card;
+  int timed_out;
+  int general_error;
+};
+
+enum Memory_Card_Event_Response {
+  MEMCARD_EVENT_RESPONSE_NONE,
+  MEMCARD_EVENT_RESPONSE_SUCCESSFUL,
+  MEMCARD_EVENT_RESPONSE_NEWCARD,
+  MEMCARD_EVENT_RESPONSE_TIMEOUT,
+  MEMCARD_EVENT_RESPONSE_ERROR,
+};
 
 struct SIE_MemoryCard_Header {  // NOTE(jerry): Non-PDA compatible. This memory card is not an application.
                                 // This is 512 bytes or 4 sectors.
@@ -77,6 +101,5 @@ int memory_card_write(char* savefile_name, void* icon_as_tim, void* data, size_t
 int memory_card_read(char* savefile_name, void* data, size_t data_size);
 void memory_card_stop(void);
 
-uint64_t djb2_checksum(const void const *data, int size);
 void debug_print_uint64_t(uint64_t x);
 #endif

@@ -2,33 +2,8 @@
 #include <psxgpu.h>
 #include <psxapi.h>
 
-// For handling mc status
-#define IDE_PROCESSING 0x01
-#define READ_PROCESSING 0x01
-#define WRITE_PROCESSING 0x04
-#define TEST_PROCESSING 0x08
-#define TIMEOUT 0x11
-#define ERROR 0x21
-
 #define HEADER_DOCUMENT_NAME ("SRG - PSX HBRW MECHA")
 #define SAVFILE_NAME_PREFIX  ("buX0:BASCUS-00000SRGSAV") 
-
-typedef struct Memory_Card_Events Memory_Card_Events;
-
-struct Memory_Card_Events {
-  int write_complete;
-  int new_card;
-  int timed_out;
-  int general_error;
-};
-
-enum Memory_Card_Event_Response {
-  MEMCARD_EVENT_RESPONSE_NONE,
-  MEMCARD_EVENT_RESPONSE_SUCCESSFUL,
-  MEMCARD_EVENT_RESPONSE_NEWCARD,
-  MEMCARD_EVENT_RESPONSE_TIMEOUT,
-  MEMCARD_EVENT_RESPONSE_ERROR,
-};
 
 static Memory_Card_Events g_memcard_events = {};
 
@@ -236,12 +211,6 @@ static SIE_MemoryCard_Header read_memory_card_header(int fd)
   return result;
 }
 
-typedef union
-{
-    uint32_t words[2];
-    uint64_t qword;
-} QWORD;
-
 void memory_card_initialize(void)
 {
     _debugprintf("[MEMORY-CARD] Init");
@@ -417,25 +386,4 @@ void memory_card_stop(void)
 {
     _debugprintf("[MEMORY-CARD] Stop");
     StopCARD();
-}
-
-uint64_t djb2_checksum(const void const *data, int size)
-{
-    // djb2 from: https://www.cse.yorku.ca/~oz/hash.html
-    const char *bytes = (const char *)data;
-    uint64_t hash = 5381;
-
-    for (int i = 0; i < size; i++)
-    {
-        hash = ((hash << 5) + hash) + bytes[i];
-    }
-
-    return hash;
-}
-
-// Print out uint64_t as two uint32_t
-void debug_print_uint64_t(uint64_t x)
-{
-    QWORD qword = (QWORD){.qword = x};
-    printf("[0] = %x, [1] = %x\n", qword.words[0], qword.words[1]);
 }
