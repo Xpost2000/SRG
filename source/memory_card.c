@@ -13,11 +13,6 @@
 #define HEADER_DOCUMENT_NAME ("SRG - PSX HBRW MECHA")
 #define SAVFILE_NAME_PREFIX  ("buX0:BASCUS-00000SRGSAV") 
 
-// TODO(jerry):
-// might want to open this to be more flexible, but it's
-// not a big deal imo.
-#define ICOFILE_PATHNAME ("\\RES\\SAVICO.TIM")       
-
 typedef struct Memory_Card_Events Memory_Card_Events;
 
 struct Memory_Card_Events {
