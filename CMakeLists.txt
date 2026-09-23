@@ -11,6 +11,7 @@ project(
 psn00bsdk_add_executable(game GPREL
 				  source/main.c
 				  source/cdfs.c
+				  source/input_pad.c
 				  source/memory_arena.c)
 
 psn00bsdk_add_cd_image(
