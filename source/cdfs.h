@@ -42,14 +42,11 @@ struct CD_File_Buffer {
   size_t   length;
 };
 
-typedef void (*CDFileCallback)(int status, CD_File_Buffer* file_buffer, void* userdata);
-
-CD_File cd_file_open(const char* fpath);
-size_t  cd_file_get_size(CD_File* file);
-size_t  cd_file_get_memory_required(CD_File* file);
-
-size_t         cd_file_read_sync_uncached(CD_File* file, unsigned char* buffer, size_t size);
-int            cd_is_ready_to_receive_read(int blocking);
-CD_File_Buffer cd_file_read_uncached(Memory_Arena* arena, CD_File* file);
+CD_File		cd_file_open(const char* fpath);
+size_t		cd_file_get_size(CD_File* file);
+size_t		cd_file_get_memory_required(CD_File* file);
+size_t		cd_file_read_sync_uncached(CD_File* file, unsigned char* buffer, size_t size);
+int		cd_is_ready_to_receive_read(int blocking);
+CD_File_Buffer	cd_file_read_uncached(Memory_Arena* arena, CD_File* file);
 
 #endif
