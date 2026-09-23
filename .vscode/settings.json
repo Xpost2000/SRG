@@ -1,0 +1,12 @@
+{
+    "C_Cpp.default.compilerPath": "${workspaceFolder}/toolchain-win64/bin/mipsel-none-elf-gcc.exe",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/run-tree/compile_commands.json",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/toolchain-win64/include/libpsn00b",
+        "${workspaceFolder}/source"
+    ],
+    "C_Cpp.default.defines": ["PSN00BSDK=1"],
+    "C_Cpp.default.cStandard": "c17",
+    "C_Cpp.default.intelliSenseMode": "gcc-x86",
+    "files.associations": { "*.h": "c" }
+}
