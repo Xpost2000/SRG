@@ -310,9 +310,10 @@ static void serialize_card(const SIE_MemoryCard_Header* const header, void* data
     memset(block_buffer, 0, sizeof(block_buffer));
 
     memcpy(block_buffer, data+data_write_count, amount_to_read);
-    data_write_count += current_write_count;
 
     current_write_count = write(fd, block_buffer, sizeof(block_buffer));
+    data_write_count += current_write_count;
+
     remaining_data_read_size -= amount_to_read;
     write_count += current_write_count;
   }
