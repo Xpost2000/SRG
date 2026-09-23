@@ -12,12 +12,14 @@
 // Which is not very parallelizable, so I don't really think it's worth keeping.
 //
 
+#include "common.h"
+#include "memory_arena.h"
+#include <psxcd.h>
+#include <psxsio.h>
+
 #define CD_SECTOR_SIZE (2048)
 #define CD_MAX_CACHED_FILES (128)
 #define CD_READ_BUFFER_CACHE_SZ (CD_SECTOR_SIZE * 336) 
-
-#include <psxcd.h>
-#include <psxsio.h>
 
 typedef struct CD_File CD_File;
 typedef struct CD_File_Buffer CD_File_Buffer;

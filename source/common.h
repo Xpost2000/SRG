@@ -64,7 +64,7 @@ struct Vector2 {
   int y;
 };
 
-void upcase_string(char* c, int s)
+static void upcase_string(char* c, int s)
 {
   for (int i = 0; i < s; ++i) {
     if (c[i] >= 'a' && c[i] <= 'z') {
