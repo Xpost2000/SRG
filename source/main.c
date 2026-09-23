@@ -179,13 +179,13 @@ int main(int argc, const char **argv) {
 
     if (input_pad_mask_button_pressed(0, PAD_UP)) {
       SaveDummyPayload payload;
+      payload.x = 4;
+      payload.y = 9;
+      payload.z = 12;
 
       printf("writing save\n");
 
       memory_card_start();
-      payload.x = 4;
-      payload.y = 9;
-      payload.z = 12;
       memory_card_write(savename, iconfile, &payload, sizeof(payload));
 
       memory_card_end();

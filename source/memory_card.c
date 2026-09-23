@@ -300,6 +300,7 @@ static void serialize_card(const SIE_MemoryCard_Header* const header, void* data
   int remaining_data_read_size = data_size;
   int amount_to_read;
   int i;
+  int j;
 
   printf("Trying to write %d bytes\n", data_size + sizeof(header));
 
@@ -311,8 +312,14 @@ static void serialize_card(const SIE_MemoryCard_Header* const header, void* data
 
     memset(block_buffer, 0, sizeof(block_buffer));
     memcpy(block_buffer, data+remaining_data_read_size, amount_to_read);
+    printf("amount to read: %d, remaining to read: %d\n", amount_to_read, remaining_data_read_size);
+    for (j = 0; j < amount_to_read; ++j) {
+      printf("%d : %x [%d]\n", j, block_buffer[j], block_buffer[j]);
+    }
 
     current_write_count = write(fd, block_buffer, sizeof(block_buffer));
+
+    remaining_data_read_size -= amount_to_read;
 
     data_write_count += current_write_count;
     write_count += current_write_count;
@@ -334,6 +341,7 @@ static void deserialize_card(void* data, size_t data_size, int fd)
   int remaining_data_write_size = data_size;
   int amount_to_write;
   int i;
+  int j;
 
   printf("Trying to read %d bytes (hdr bytes: %d)\n", data_size + sizeof(header), sizeof(header));
 
@@ -343,9 +351,15 @@ static void deserialize_card(void* data, size_t data_size, int fd)
     int current_read_count = read(fd, &block_buffer[0], sizeof(block_buffer));
     amount_to_write = min(remaining_data_write_size, sizeof(block_buffer));
 
+    remaining_data_write_size -= amount_to_write;
     read_count += current_read_count;
     data_read_count += current_read_count;
 
+    for (j = 0; j < amount_to_write; ++j) {
+      printf("%d : %x [%d]\n", j, block_buffer[j], block_buffer[j]);
+    }
+
+    printf("amount to write: %d, remaining to write: %d\n", amount_to_write, remaining_data_write_size);
     memcpy(data + data_read_count, block_buffer, amount_to_write);
   }
 
@@ -420,7 +434,7 @@ int memory_card_read(char* savefile_name, void* data, size_t data_size)
     return 1; // was able to read
 }
 
-void memory_card_end(void)
+void memory_card_stop(void)
 {
     _debugprintf("[MEMORY-CARD] Stop");
     StopCARD();
