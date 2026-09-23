@@ -30,8 +30,6 @@
 #define MEMCARD_SECTOR_SZ  (128)  // 128B
 #define MEMCARD_BLOCK_SZ   (8192) // 8KB
 #define MEMCARD_MAX_BLOCKS (15)
-#define PAD_TO_MEMCARD_BLOCKS(COUNT) char _pad[COUNT * MEMCARD_BLOCK_SZ - sizeof(SIE_MemoryCard_Header)]
-#define PAD_TO_MEMCARD_SECTORS(COUNT) char _pad[COUNT * MEMCARD_SECTOR_SZ]
 
 typedef struct SIE_MemoryCard_Header SIE_MemoryCard_Header;
 
@@ -48,26 +46,6 @@ struct SIE_MemoryCard_Header {  // NOTE(jerry): Non-PDA compatible. This memory 
   uint8_t  ico1[128];           //  animation frame 1, invalid if Type != 0x11
   uint8_t  ico2[128];           //  animation frame 2
 };
-
-#if 0
-//
-// This is an example of how to make a working
-// payload for a memory card file that is correctly padded.
-//
-typedef union
-{
-  struct
-  {
-    uint64_t checksum;
-    int player_x;
-    int player_y;
-
-    // NOTE (Gabe): Add this back once menu and input screen is added
-    // char save_name[20];
-  };
-  PAD_TO_MEMCARD_BLOCKS(1);
-} SavedGameStateMC;
-#endif
 
 //
 // NOTE(jerry): returned as a local
