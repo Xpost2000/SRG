@@ -1,12 +1,13 @@
 //
 // this just clears a screen red, super simple testing compilation sample.
 //
+#include "common.h"
 
-#include <assert.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdint.h>
+#include "input_pad.h"
+
+#include <psxpad.h>
 #include <psxgpu.h>
+
 
 int main(int argc, const char **argv) {
   //
@@ -28,6 +29,12 @@ int main(int argc, const char **argv) {
   // Initialize the GPU
   //
   ResetGraph(0);
+
+  //
+  // Initialize the low level input module
+  //
+  input_pad_initialize();
+
 
   //
   // Setting it up is pretty easy, we just pick a section
@@ -100,6 +107,9 @@ int main(int argc, const char **argv) {
   for (;;) {
     DISPENV* presenting_display_environment;
     DRAWENV* available_draw_environment;
+
+    input_pad_frame();
+
     //
     // Complete GPU drawing commands and
     // wait on vblank / vsync
@@ -109,6 +119,12 @@ int main(int argc, const char **argv) {
 
     available_draw_environment = &draw_environment[frame_index];
     presenting_display_environment = &display_environment[frame_index ^ 1];
+
+    {
+      if (input_pad_mask_button_pressed(0, PAD_UP)) {
+	printf("I pressed up!\n");
+      }
+    }
 
     PutDispEnv(presenting_display_environment);
     PutDrawEnv(available_draw_environment);
