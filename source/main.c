@@ -72,7 +72,7 @@ int main(int argc, const char **argv) {
       printf("save file not found\n");
     }
 
-    memory_card_end();
+    memory_card_stop();
   }
 
   //
@@ -180,7 +180,7 @@ int main(int argc, const char **argv) {
     if (input_pad_mask_button_pressed(0, PAD_UP)) {
       SaveDummyPayload payload;
       payload.x = 4;
-      payload.y = 9;
+      payload.y = 255;
       payload.z = 12;
 
       printf("writing save\n");
@@ -188,7 +188,7 @@ int main(int argc, const char **argv) {
       memory_card_start();
       memory_card_write(savename, iconfile, &payload, sizeof(payload));
 
-      memory_card_end();
+      memory_card_stop();
 
       printf("wrote save\n");
 
