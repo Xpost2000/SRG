@@ -95,12 +95,3 @@ Follow what `source/main.c` already does:
   hardware, not just what the line does. ASCII diagrams are welcome — the VRAM map comment
   in `main.c` is the model to imitate. When adding code that touches hardware, explain the
   hardware.
-
-## Gotchas
-
-- **Call both `PutDispEnv()` and `PutDrawEnv()` every frame.** Forgetting `PutDrawEnv` is
-  an easy bug that silently produces a wrong or frozen image (commit `b78f432` was exactly
-  this).
-- `DrawSync(0)` then `VSync(0)` before swapping buffers, or you will tear.
-- The GPU draws asynchronously. Do not touch a primitive buffer the GPU is still reading.
-- Writing `float` anywhere in a hot path is almost always a mistake — see the FPU note above.
