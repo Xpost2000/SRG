@@ -1,0 +1,389 @@
+#include "memory_card.h"
+#include <psxgpu.h>
+#include <psxapi.h>
+
+#define HEADER_DOCUMENT_NAME ("SRG - PSX HBRW MECHA")
+#define SAVFILE_NAME_PREFIX  ("buX0:BASCUS-00000SRGSAV") 
+
+static Memory_Card_Events g_memcard_events = {};
+
+static void _enable_memcard_events(void)
+{
+  EnableEvent(g_memcard_events.write_complete);
+  EnableEvent(g_memcard_events.new_card);
+  EnableEvent(g_memcard_events.timed_out);
+  EnableEvent(g_memcard_events.general_error);
+}
+
+static void _disable_memcard_events(void)
+{
+  DisableEvent(g_memcard_events.write_complete);
+  DisableEvent(g_memcard_events.new_card);
+  DisableEvent(g_memcard_events.timed_out);
+  DisableEvent(g_memcard_events.general_error);
+}
+
+static int _wait_memcard_event(void)
+{
+  int received_event = 0;
+  int result = MEMCARD_EVENT_RESPONSE_NONE;
+
+  while (!received_event) {
+    if (TestEvent(g_memcard_events.new_card)==1) {
+      _debugprintf("[MEMORY-CARD]: Detected uninitialized memory card.");
+      received_event = 1;
+      result = MEMCARD_EVENT_RESPONSE_NEWCARD;
+    }
+
+    if (TestEvent(g_memcard_events.write_complete)==1) {
+      _debugprintf("[MEMORY-CARD]: Write complete, this means the card exists.");
+      received_event = 1;
+      result = MEMCARD_EVENT_RESPONSE_SUCCESSFUL;
+    }
+
+    if (TestEvent(g_memcard_events.timed_out)==1) {
+      _debugprintf("[MEMORY-CARD]: Error event (timeout) received.");
+      received_event = 1;
+      result = MEMCARD_EVENT_RESPONSE_TIMEOUT;
+    }
+
+    if (TestEvent(g_memcard_events.general_error)==1) {
+      _debugprintf("[MEMORY-CARD]: Error event received.");
+      received_event = 1;
+      result = MEMCARD_EVENT_RESPONSE_ERROR;
+    }
+  }
+
+  return result;
+}
+
+/*
+ * NOTE(jerry):
+ * EventClass table
+ *
+ * SOURCE_DESCRIPTOR / EVENT CLASS
+ *
+ * SwCARD / EvSpIOE    -- connected
+ * SwCARD / EvSpTIMOUT -- Not connected
+ */
+int memory_card_port_connected(int port)
+{
+  int result = 0;
+  int portmask = port << 4;
+  int status_flag_type;
+  assert((port == 0 || port == 1) && "[MEMORY-CARD] unknown card port number specified.");
+
+  // NOTE(jerry):
+  // While games seem to do this asynchronously, we're just going to block since that
+  // requires more hooking else where...
+  // (FF7 for example appears to read asynchronously.)
+
+  _enable_memcard_events();
+
+  {
+    // NOTE(jerry): *should* be in critical section
+    // in-case any IRQs hit it, though I do not believe there are any issues
+    // with this, since mostly everything should be disabled in a memcard save scree anyway.
+    _card_info(portmask);
+    status_flag_type = _wait_memcard_event();
+    switch (status_flag_type) {
+      case MEMCARD_EVENT_RESPONSE_NEWCARD: {
+        _card_clear(portmask);
+        status_flag_type = _wait_memcard_event();
+
+        if ((status_flag_type == MEMCARD_EVENT_RESPONSE_ERROR) ||
+            (status_flag_type == MEMCARD_EVENT_RESPONSE_TIMEOUT)) {
+          _debugprintf("[MEMORY-CARD] card was possibly removed or other communication error. Not retrying.");
+          result = 0;
+          goto bye;
+        }
+      } break;
+      case MEMCARD_EVENT_RESPONSE_TIMEOUT:
+      case MEMCARD_EVENT_RESPONSE_ERROR: {
+        _debugprintf("[MEMORY-CARD] error found, not retrying.");
+        result = 0;
+        goto bye;
+      } break;
+      case MEMCARD_EVENT_RESPONSE_SUCCESSFUL: {
+        result = 1;
+        _debugprintf("[MEMORY-CARD] Existence confirmed.");
+        goto bye;
+      } break;
+    }
+
+    _card_load(port << 4);
+    status_flag_type = _wait_memcard_event();
+
+    switch (status_flag_type) {
+      case MEMCARD_EVENT_RESPONSE_NEWCARD: {
+        _debugprintf("[MEMORY-CARD] unformatted memory card found. Suggesting formatting.");
+        result = 2;
+        goto bye;
+      } break;
+      case MEMCARD_EVENT_RESPONSE_SUCCESSFUL: {
+        result = 1;
+        _debugprintf("[MEMORY-CARD] Existence confirmed.");
+        goto bye;
+      } break;
+      case MEMCARD_EVENT_RESPONSE_TIMEOUT:
+      case MEMCARD_EVENT_RESPONSE_ERROR: {
+        _debugprintf("[MEMORY-CARD] error found, not retrying.");
+        result = 0;
+        goto bye;
+      } break;
+    }
+  }
+bye:
+  _disable_memcard_events();
+  return result;
+}
+
+void memory_card_format(int port)
+{
+#if 0
+  //
+  // NOTE(jerry): I can't remember the source of when we found
+  // out that the _card_format call does nothing.
+  //
+
+  //
+  // Here semantically, this thing is apparently not real!
+  //
+  int portmask = port << 4;
+  _card_format(portmask); // NOTE(jerry): function is synchronous.
+#endif
+}
+
+char* get_game_save_name(int port, int id_slot)
+{
+  // NOTE(jerry):
+  // I am seeming to not trust psn00bsdk with snprintf,
+  // assume we have 15 possible slots.
+  static char result[128] = {};
+  strncpy(result, SAVFILE_NAME_PREFIX, sizeof(result));
+
+  switch (port) {
+    case 0: result[2] = '0'; break;
+    case 1: result[2] = '1'; break;
+    default:
+      assert(0 && "[SAVE] invalid port id specified");
+  }
+
+  result[(sizeof(SAVFILE_NAME_PREFIX)-1)]   = '0' + id_slot/10;
+  result[(sizeof(SAVFILE_NAME_PREFIX)-1)+1] = '0' + id_slot%10;
+  result[(sizeof(SAVFILE_NAME_PREFIX)-1)+2] = 0;
+  _debugprintf("[SAVE] requested savename: %s\n", result);
+  return result;
+}
+
+static SIE_MemoryCard_Header build_memory_card_header(TIM_IMAGE* icon_image, char* document_name, int blockcount)
+{
+  SIE_MemoryCard_Header result = {};
+  assert((icon_image->mode & 0x3) == 0 && "[MEMORY-CARD] Icon image provided is not 4bpp");
+  assert(blockcount <= MEMCARD_MAX_BLOCKS && "[MEMORY-CARD] block count is higher than standard ps1 block count.");
+
+  {
+    result.magic[0] = 'S';
+    result.magic[1] = 'C';
+
+    result.type = 0x11; // single icon type.
+    result.blockcount = blockcount;
+    {
+      int copycount = strlen(document_name);
+      if (copycount > sizeof(result.document_name)) {
+        copycount = sizeof(result.document_name);
+      }
+      strncpy(result.document_name, document_name, copycount);
+    }
+
+    memcpy(result.ico_clut, (uint8_t*)icon_image->caddr, 32);
+    memcpy(result.ico0, (uint8_t*)icon_image->paddr, 128);
+  }
+
+  return result;
+}
+
+static SIE_MemoryCard_Header read_memory_card_header(int fd)
+{
+  SIE_MemoryCard_Header result = {};
+  int readcount = read(fd, &result, sizeof(result));
+  assert(readcount == sizeof(result) && "[MEMORY-CARD] short count on header read.");
+  return result;
+}
+
+void memory_card_initialize(void)
+{
+    _debugprintf("[MEMORY-CARD] Init");
+    InitCARD(1);
+
+    g_memcard_events.write_complete = OpenEvent(SwCARD, EvSpIOE,    EvMdNOINTR, NULL);
+    g_memcard_events.new_card       = OpenEvent(SwCARD, EvSpNEW,    EvMdNOINTR, NULL);
+    g_memcard_events.timed_out      = OpenEvent(SwCARD, EvSpTIMOUT, EvMdNOINTR, NULL);
+    g_memcard_events.general_error  = OpenEvent(SwCARD, EvSpERROR,  EvMdNOINTR, NULL);
+}
+
+void memory_card_start(void)
+{
+    _debugprintf("[MEMORY-CARD] Start");
+    StartCARD();
+    _bu_init();
+}
+
+// NOTE (Gabe): This is bad, but works since idk why I can get
+//  openevent handler to work, copy example code but could not
+//  get it to work.
+int memory_card_file_exists(char* file)
+{
+  assert(
+    file[0] == 'b' &&
+    file[1] == 'u' &&
+    (file[2] == '0' || file[2] == '1') &&
+    file[3] == '0' && // NOTE(jerry): is technically the extension connector number, but a standard card is 0 (which is 90% of the audience anyway.)
+    file[4] == ':' &&
+    "[MEMORY-CARD] file name is not prefixed with buX0:, hard fail."
+  );
+  _debugprintf("[MEMORY-CARD] Check card");
+
+  int fd;
+  if ((fd = open(file, FREAD)) == -1)
+  {
+    _debugprintf("[MEMORY-CARD] Card does not exist");
+    return 0;
+  }
+
+  _debugprintf("[MEMORY-CARD] Card exist");
+  close(fd);
+  return 1;
+}
+
+static void serialize_card(const SIE_MemoryCard_Header* const header, void* data, size_t data_size, int fd)
+{
+  uint8_t block_buffer[MEMCARD_BLOCK_SZ];
+  int write_count = 0;
+  int data_write_count = 0;
+  int remaining_data_read_size = data_size;
+  int amount_to_read;
+  int i;
+
+  write_count += write(fd, header, sizeof(*header));
+
+  for (i = 0; i < header->blockcount; ++i) {
+    int current_write_count;
+    amount_to_read = min(remaining_data_read_size, sizeof(block_buffer));
+
+    memset(block_buffer, 0, sizeof(block_buffer));
+    memcpy(block_buffer, data+data_write_count, amount_to_read);
+
+    current_write_count = write(fd, block_buffer, sizeof(block_buffer));
+    data_write_count += current_write_count;
+
+    remaining_data_read_size -= amount_to_read;
+    write_count += current_write_count;
+  }
+
+  // NOTE (Gabe): If write call size is not multi of 128, something is wrong
+  _debugprintf("[MEMORY-CARD] write call: %d bytes (%d blocks)", write_count, header->blockcount);
+  assert(((write_count % 128) == 0) && "[MEMORY-CARD] write call failed");
+  assert(((data_write_count % MEMCARD_BLOCK_SZ) == 0) && "[MEMORY-CARD] failure to write full block");
+  assert(((data_write_count == header->blockcount * MEMCARD_BLOCK_SZ)) && "[MEMORY-CARD] wrote invalid # of blocks");
+}
+
+static void deserialize_card(void* data, size_t data_size, int fd)
+{
+  SIE_MemoryCard_Header header;
+  uint8_t block_buffer[MEMCARD_BLOCK_SZ];
+  int read_count = 0;
+  int data_read_count = 0;
+  int remaining_data_write_size = data_size;
+  int amount_to_write;
+  int i;
+
+  read_count += read(fd, &header, sizeof(header));
+
+  for (i = 0; i < header.blockcount; ++i) {
+    int current_read_count = read(fd, &block_buffer[0], sizeof(block_buffer));
+    amount_to_write = min(remaining_data_write_size, sizeof(block_buffer));
+
+    memcpy(data+data_read_count, block_buffer, amount_to_write);
+    data_read_count += current_read_count;
+
+    remaining_data_write_size -= amount_to_write;
+    read_count += current_read_count;
+  }
+
+  // Validate header...
+  {
+    assert(header.magic[0] == 'S' && header.magic[1] == 'C' && "[MEMORY-CARD] invalid memory card header magic.");
+    // game check.
+    assert(strcmp(header.document_name, HEADER_DOCUMENT_NAME) == 0 && "[MEMORY-CARD] invalid game document name.");
+  }
+
+  // NOTE (Gabe): If read call size is not a multi of 128, something is wrong
+  _debugprintf("[MEMORY-CARD] read call: %d bytes (%d blocks) vs. %d", read_count, header.blockcount, MEMCARD_BLOCK_SZ);
+  assert(((read_count % 128) == 0) && "[MEMORY-CARD] read call failed");
+  assert(((data_read_count % MEMCARD_BLOCK_SZ) == 0) && "[MEMORY-CARD] failure to read full block");
+  assert(((data_read_count == header.blockcount * MEMCARD_BLOCK_SZ)) && "[MEMORY-CARD] read invalid # of blocks");
+}
+
+int memory_card_write(char* savefile_name, void* icon_as_tim, void* data, size_t data_size)
+{
+    _debugprintf("[MEMORY-CARD] Write out game state to card");
+    TIM_IMAGE imghdr = {};
+    int slot_count = ((sizeof(SIE_MemoryCard_Header) + data_size) + 8191) / MEMCARD_BLOCK_SZ;
+    int is_card_good = memory_card_file_exists(savefile_name);
+    int fd;
+
+    if (!is_card_good) {
+      _debugprintf("[MEMORY-CARD] card file not good, trying to make file?");
+      fd = open(savefile_name, FCREATE | (slot_count << 16));
+    } else {
+      _debugprintf("[MEMORY-CARD] card file good, open in write.");
+      fd = open(savefile_name, FWRITE);
+    }
+
+    if (fd == -1) {
+        _debugprintf("[MEMORY-CARD] Failed to write");
+        return 0; // failed
+    }
+
+    GetTimInfo((uint32_t*) icon_as_tim, &imghdr);
+    {
+      SIE_MemoryCard_Header memcard_header =
+	build_memory_card_header(&imghdr,
+				 HEADER_DOCUMENT_NAME,
+				 slot_count);
+
+      serialize_card(&memcard_header, data, data_size, fd);
+    }
+
+    close(fd);
+    return 1; // card saved
+}
+
+int memory_card_read(char* savefile_name, void* data, size_t data_size)
+{
+    _debugprintf("[MEMORY-CARD] Read out game state to card");
+
+    int is_card_good = memory_card_file_exists(savefile_name);
+    if (!is_card_good)
+    {
+        return 0;
+    }
+
+    int fd;
+    if ((fd = open(savefile_name, FREAD)) == -1)
+    {
+        _debugprintf("[MEMORY-CARD] Failed to read");
+        return 0; // failed
+    }
+
+    deserialize_card(data, data_size, fd);
+    close(fd);
+    return 1; // was able to read
+}
+
+void memory_card_stop(void)
+{
+    _debugprintf("[MEMORY-CARD] Stop");
+    StopCARD();
+}
