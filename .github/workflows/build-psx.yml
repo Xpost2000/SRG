@@ -1,0 +1,32 @@
+name: Build PSX Image
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  Build-Executable:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Files
+        uses: actions/checkout@v4
+
+      - name: Build PSX Image
+        shell: pwsh
+        run: .\build.bat
+
+      - name: Prepare Artifact Bundle
+        shell: pwsh
+        run: |
+          mkdir output
+          copy run-tree/game.bin output
+          copy run-tree/game.cue output
+          echo "BUILD_TAG=$(git log -1 --format="%h--%ad" --date=format-local:"%Y-%m-%d-%H%M%S")" >> $env:GITHUB_ENV 
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SRG-${{ env.BUILD_TAG }}
+          path: output/
+
