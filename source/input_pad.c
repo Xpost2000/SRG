@@ -78,11 +78,6 @@ static int _input_pad_mask_button(int pad_index, uint16_t buttonmask, int frame)
 
   // NOTE(jerry):
   // Buttons are inverted state (floating signal on hardware?)
-  //
-  // A DualShock in analog (red LED) mode identifies as PAD_ID_ANALOG but
-  // carries the same 16 button bits in the same place, so both types are
-  // read identically. We only use buttons in this game, so the stick
-  // bytes that follow are ignored.
   switch (packet->type) {
     case PAD_ID_ANALOG:
     case PAD_ID_DIGITAL: {
