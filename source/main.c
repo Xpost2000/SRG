@@ -6,6 +6,7 @@
 #include "cdfs.h"
 #include "memory_card.h"
 #include "input_pad.h"
+#include "ps1_mem_limit.h"
 
 #include <psxpad.h>
 #include <psxgpu.h>
@@ -56,6 +57,11 @@ int main(int argc, const char **argv) {
 
   memory_card_initialize();
   savename = get_game_save_name(1, 0);
+
+  {
+    uintptr_t remaining_memory = system_get_remaining_allocatable_memory();
+    _debugprintf("[MEMORY]: %d bytes, %d kb, %d mb left\n", remaining_memory, remaining_memory / 1024, remaining_memory / (1024*1024));
+  }
 
   {
     memory_card_start();
