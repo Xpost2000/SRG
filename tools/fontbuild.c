@@ -147,39 +147,34 @@ static void output_tim(TIM_Image* timimage, char* filebasename)
   FILE* f;
 
   snprintf(tmp, 256, "%s.tim", filebasename);
-
   f = fopen(tmp, "wb+");
 
-#define _fwrite(a,b,c,d) fwrite(d, b, c, a)
-  _fwrite(f, sizeof(uint8_t), 1, &timimage->tag);
-  _fwrite(f, sizeof(uint8_t), 1, &timimage->version);
-  _fwrite(f, sizeof(uint8_t), 1, &timimage->_pad0);
-  _fwrite(f, sizeof(uint8_t), 1, &timimage->_pad1);
+  fwrite(&timimage->tag, sizeof(uint8_t), 1, f);
+  fwrite(&timimage->version, sizeof(uint8_t), 1, f);
+  fwrite(&timimage->_pad0, sizeof(uint8_t), 1, f);
+  fwrite(&timimage->_pad1, sizeof(uint8_t), 1, f);
 
-  _fwrite(f, sizeof(uint32_t), 1, &timimage->flags);
+  fwrite(&timimage->flags, sizeof(uint32_t), 1, f);
 
-  _fwrite(f, sizeof(uint32_t), 1, &timimage->clut_length);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->clut_x);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->clut_y);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->clut_width);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->clut_height);
-  _fwrite(f, sizeof(uint16_t) * timimage->clut_width * timimage->clut_height, 1, timimage->clut);
+  fwrite(&timimage->clut_length, sizeof(uint32_t), 1, f);
+  fwrite(&timimage->clut_x, sizeof(uint16_t), 1, f);
+  fwrite(&timimage->clut_y, sizeof(uint16_t), 1, f);
+  fwrite(&timimage->clut_width, sizeof(uint16_t), 1, f);
+  fwrite(&timimage->clut_height, sizeof(uint16_t), 1, f);
+  fwrite(timimage->clut, sizeof(uint16_t) * timimage->clut_width * timimage->clut_height, 1, f);
 
-  _fwrite(f, sizeof(uint32_t), 1, &timimage->image_length);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->image_x);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->image_y);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->image_width);
-  _fwrite(f, sizeof(uint16_t), 1, &timimage->image_height);
-  _fwrite(f, sizeof(uint8_t) * timimage->image_width * timimage->image_height, 1, timimage->image);
-#undef _fwrite
+  fwrite(&timimage->image_length, sizeof(uint32_t), 1, f);
+  fwrite(&timimage->image_x, sizeof(uint16_t), 1, f);
+  fwrite(&timimage->image_y, sizeof(uint16_t), 1, f);
+  fwrite(&timimage->image_width, sizeof(uint16_t), 1, f);
+  fwrite(&timimage->image_height, sizeof(uint16_t), 1, f);
+  fwrite(timimage->image, sizeof(uint16_t) * timimage->image_width * timimage->image_height, 1, f);
 
   fclose(f);
 }
 
 void insert_palette_color(Color32u8 color)
 {
-  int i;
-
   if (get_color_index_from_palette(color) == -1) {
     assert(g_palette_used < 16 && "insert_palette_color has ran out of colors, the supplied image has too many colors.");
     g_palette[g_palette_used++] = color;
@@ -209,7 +204,7 @@ int main(int argc, char** argv)
   int           tim_width, tim_height;
   int           tim_length;
 
-  uint8_t* clut_data;
+  uint16_t* clut_data;
   uint8_t* tim_image_data;
 
   memset(&srgfont, 0, sizeof(srgfont));
@@ -267,7 +262,7 @@ int main(int argc, char** argv)
 
     printf("allocating CLUT for 4bpp image.\n");
 
-    clut_data = (uint8_t*) malloc(sizeof(uint16_t) * 16);
+    clut_data = (uint16_t*) malloc(sizeof(uint16_t) * 16);
 
     //
     // set all initial colors transparent
@@ -328,15 +323,19 @@ int main(int argc, char** argv)
     int tiles_to_pack = original_rows * original_cols;
     int tile_index    = 0;
 
-    tim_length = sizeof(uint8_t) * (cols * glyph_width) * (rows * glyph_height);
+    tim_length = (cols * glyph_width/2) * (rows * glyph_height);
     tim_image_data = (uint8_t*) malloc(tim_length);
-    memset(tim_image_data, 0, sizeof(tim_length));
-    printf("tim image region is: %d bytes\n", tim_length);
+    memset(tim_image_data, 0, tim_length);
+    printf("tim image region is: %d bytes long\n", tim_length);
 
     //
     // same loop as before but we are in packing mode.
     //
     for (; tile_index < tiles_to_pack; ++tile_index) {
+      if (cursor_x+glyph_width >= TPAGE_PIXEL_WIDTH) {
+	cursor_x = 0;
+	cursor_y += glyph_height;
+      }
 
       //
       // copy into image data from the original image
@@ -358,14 +357,6 @@ int main(int argc, char** argv)
 	    original_pixel.b = image_pixel_data[((i + (row_offset * glyph_height)) * (image_width * 4) + (j + (col_offset * glyph_width)) * 4) + 2];
 	    original_pixel.a = image_pixel_data[((i + (row_offset * glyph_height)) * (image_width * 4) + (j + (col_offset * glyph_width)) * 4) + 3];
 
-#if 0
-	    if (original_pixel.a != 0) {
-	      printf("*");
-	    } else {
-	      printf(" ");
-	    }
-#endif
-
 	    //
 	    // 4 bit index
 	    //
@@ -380,24 +371,21 @@ int main(int argc, char** argv)
 	      tim_image_data[(cursor_y + i) * (tim_width/2) + ((cursor_x + j) / 2)] |= color_index << 4;
 	    }
 	  }
-
-	  printf("\n");
 	}
       }
 
-      if (cursor_x+glyph_width >= TPAGE_PIXEL_WIDTH) {
-	cursor_x = 0;
-	cursor_y += glyph_height;
-	rows++;
-      } else {
-	cursor_x += glyph_width;
-      }
+      cursor_x += glyph_width;
+
+      /* if (cursor_x >= TPAGE_PIXEL_WIDTH) { */
+      /* 	cursor_x = 0; */
+      /* 	cursor_y += glyph_height; */
+      /* } */
     }
   }
 
   printf("Outputting TIM (for debugging) (tim data length: %d)\n", tim_length);
   {
-    srgfont.image_contents.image_length = sizeof(uint32_t)*3 + sizeof(uint16_t) * 2 + tim_length;
+    srgfont.image_contents.image_length = sizeof(uint32_t)*1 + sizeof(uint16_t) * 4 + tim_length;
     srgfont.image_contents.image_width = tim_width/4;
     srgfont.image_contents.image_height = tim_height;
     srgfont.image_contents.image = tim_image_data;
