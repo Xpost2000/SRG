@@ -23,5 +23,5 @@ psn00bsdk_add_cd_image(
 	iso      # Target name
 	game     # Output file name (= game.bin + game.cue)
 	iso.xml  # Path to config file
-	DEPENDS game system.cnf
+	DEPENDS game system.cnf res/
 )
