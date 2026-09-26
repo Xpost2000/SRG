@@ -322,7 +322,7 @@ int main(int argc, char** argv)
     // set all initial colors transparent
     //
     for (i = 0; i < 16; ++i) {
-      clut_data[i] = color32u8_to_5551((Color32u8){0,0,0,0});
+      clut_data[i] = color32u8_to_5551((Color32u8){255,0,0,255});
     }
 
     for (i = 0; i < g_palette_used; ++i) {
