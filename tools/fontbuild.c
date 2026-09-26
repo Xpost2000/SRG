@@ -83,7 +83,7 @@ struct TIM_Image {
   uint16_t image_width;
   uint16_t image_height;
 
-  uint8_t* image;
+  uint16_t* image;
 };
 
 //
@@ -436,7 +436,7 @@ int main(int argc, char** argv)
     srgfont.image_contents.image_length = sizeof(uint32_t)*1 + sizeof(uint16_t) * 4 + tim_length;
     srgfont.image_contents.image_width = tim_width/4;
     srgfont.image_contents.image_height = tim_height;
-    srgfont.image_contents.image = tim_image_data;
+    srgfont.image_contents.image = (uint16_t*)tim_image_data;
     printf("%d x %d\n", srgfont.image_contents.image_width, srgfont.image_contents.image_height);
 
     output_tim(&srgfont.image_contents, output_image_filename);
