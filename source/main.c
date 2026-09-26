@@ -5,8 +5,8 @@
 // exists to exercise the input action layer end to end so anyone can plug in
 // a pad (real or emulated) and see:
 //
-//   - gameplay context: every one of the 16 buttons does something visible
-//   - UI context:       menu navigation with auto-repeat, confirm, cancel
+//   - gameplay schema:  every one of the 16 buttons does something visible
+//   - UI schema:        menu navigation with auto-repeat, confirm, cancel
 //   - presets:          switching Type A <-> Type B live, saving the choice
 //                       to the memory card, and reloading it
 //   - help overlay:     hold HELP to print the live bindings, read straight
@@ -32,16 +32,20 @@
 // so this is the shape our real save will grow from.
 //
 // The magic + version guard against reading a stale layout from an old card.
-// Bump the version whenever the struct changes.
+// Bump the version whenever the struct changes or a field changes meaning.
+// (Version 1 stored a 0/1 preset index; version 2 stores the Input_Schema
+// value directly.)
 //
 #define GAME_SETTINGS_MAGIC   "SRGS"
-#define GAME_SETTINGS_VERSION (1)
+#define GAME_SETTINGS_VERSION (2)
 
-typedef struct Game_Settings {
+typedef struct Game_Settings Game_Settings;
+
+struct Game_Settings {
   char    magic[4];
   uint8_t version;
-  uint8_t gameplay_preset[2]; // Input_Gameplay_Preset, per pad
-} Game_Settings;
+  uint8_t gameplay_schema[2]; // Input_Schema, one per pad, always a GAMEPLAY_* value
+};
 
 // ----------------------------------------------------------------------------
 //  Scene state
@@ -60,21 +64,23 @@ typedef struct Game_Settings {
 #define MENU_REPEAT_DELAY_FRAMES (20)
 #define MENU_REPEAT_RATE_FRAMES  (6)
 
-typedef enum Scene_Mode {
+typedef struct Test_Scene Test_Scene;
+
+enum Scene_Mode {
   SCENE_MODE_GAMEPLAY,
   SCENE_MODE_MENU,
-} Scene_Mode;
+};
 
-typedef enum Menu_Item {
-  MENU_ITEM_P1_PRESET,
-  MENU_ITEM_P2_PRESET,
+enum Menu_Item {
+  MENU_ITEM_P1_SCHEMA,
+  MENU_ITEM_P2_SCHEMA,
   MENU_ITEM_SAVE,
   MENU_ITEM_LOAD,
   MENU_ITEM_COUNT
-} Menu_Item;
+};
 
-typedef struct Test_Scene {
-  Scene_Mode    mode;
+struct Test_Scene {
+  int           mode; // Scene_Mode
   Game_Settings settings;
 
   Rectangle32   box;
@@ -84,16 +90,50 @@ typedef struct Test_Scene {
   Vector2       markers[MARKER_CAPACITY];
   int           marker_count;
 
-  int           menu_cursor;
-  char          status[48]; // last save / load result, shown on screen
-} Test_Scene;
+  int           menu_cursor; // Menu_Item
+  char          status[48];  // last save / load result, shown on screen
+};
 
-static const uint8_t BOX_COLORS[][3] = {
+static const uint8_t g_box_colors[][3] = {
   { 255, 200,  40 },
   {  60, 220, 120 },
   {  80, 140, 255 },
   { 255,  90,  90 },
   { 230, 230, 230 },
+};
+
+//
+// Short labels for the help overlay and the held-action debug line, in
+// Input_Action order.
+//
+static const char* const g_action_labels[INPUT_ACTION_COUNT] = {
+  [INPUT_ACTION_UI_UP]          = "UI UP",
+  [INPUT_ACTION_UI_DOWN]        = "UI DOWN",
+  [INPUT_ACTION_UI_LEFT]        = "UI LEFT",
+  [INPUT_ACTION_UI_RIGHT]       = "UI RIGHT",
+  [INPUT_ACTION_UI_CONFIRM]     = "CONFIRM",
+  [INPUT_ACTION_UI_CANCEL]      = "CANCEL",
+  [INPUT_ACTION_UI_MENU]        = "MENU",
+  [INPUT_ACTION_MOVE_UP]        = "UP",
+  [INPUT_ACTION_MOVE_DOWN]      = "DOWN",
+  [INPUT_ACTION_MOVE_LEFT]      = "LEFT",
+  [INPUT_ACTION_MOVE_RIGHT]     = "RIGHT",
+  [INPUT_ACTION_COLOR_NEXT]     = "COLOR+",
+  [INPUT_ACTION_COLOR_PREV]     = "COLOR-",
+  [INPUT_ACTION_GROW]           = "GROW",
+  [INPUT_ACTION_SHRINK]         = "SHRINK",
+  [INPUT_ACTION_BOOST]          = "BOOST",
+  [INPUT_ACTION_SLOW]           = "SLOW",
+  [INPUT_ACTION_DROP_MARKER]    = "MARKER",
+  [INPUT_ACTION_CLEAR_MARKERS]  = "CLEAR",
+  [INPUT_ACTION_TOGGLE_OUTLINE] = "OUTLINE",
+  [INPUT_ACTION_RESET_POSITION] = "RESET",
+  [INPUT_ACTION_HELP]           = "HELP",
+  [INPUT_ACTION_PAUSE]          = "PAUSE",
+};
+
+static const char* const g_menu_labels[MENU_ITEM_COUNT] = {
+  "P1 LAYOUT", "P2 LAYOUT", "SAVE TO CARD", "LOAD FROM CARD",
 };
 
 static uint8_t g_iconfile[CD_SECTOR_SIZE]; // memory card icon TIM, one CD sector
@@ -107,16 +147,19 @@ static void settings_reset(Game_Settings* settings)
   memory_zero(settings, sizeof(*settings));
   memcpy(settings->magic, GAME_SETTINGS_MAGIC, sizeof(settings->magic));
   settings->version            = GAME_SETTINGS_VERSION;
-  settings->gameplay_preset[0] = INPUT_GAMEPLAY_PRESET_A;
-  settings->gameplay_preset[1] = INPUT_GAMEPLAY_PRESET_A;
+  settings->gameplay_schema[0] = INPUT_SCHEMA_GAMEPLAY_A;
+  settings->gameplay_schema[1] = INPUT_SCHEMA_GAMEPLAY_A;
 }
 
 static int settings_valid(const Game_Settings* settings)
 {
   if (memcmp(settings->magic, GAME_SETTINGS_MAGIC, sizeof(settings->magic)) != 0) return 0;
   if (settings->version != GAME_SETTINGS_VERSION)                                  return 0;
-  if (settings->gameplay_preset[0] >= INPUT_GAMEPLAY_PRESET_COUNT)                 return 0;
-  if (settings->gameplay_preset[1] >= INPUT_GAMEPLAY_PRESET_COUNT)                 return 0;
+
+  for (int pad_index = 0; pad_index < 2; ++pad_index) {
+    int schema = settings->gameplay_schema[pad_index];
+    if (schema < INPUT_SCHEMA_GAMEPLAY_FIRST || schema >= INPUT_SCHEMA_COUNT) return 0;
+  }
   return 1;
 }
 
@@ -163,23 +206,19 @@ static void settings_save(Test_Scene* scene)
 }
 
 // ----------------------------------------------------------------------------
-//  Context switching
+//  Mode switching
 // ----------------------------------------------------------------------------
 
-static void on_gameplay_action(int pad_index, Input_Action action, Input_Event event, void* user_data);
-static void on_menu_action(int pad_index, Input_Action action, Input_Event event, void* user_data);
-
 //
-// Opening or closing the menu is nothing more than rebinding both pads to a
-// different schema. From the next frame the same physical button means
+// Opening or closing the menu is nothing more than pointing both pads at a
+// different schema. From the next poll the same physical button means
 // UI_CONFIRM instead of COLOR_NEXT, and COLOR_NEXT can no longer fire at all.
 //
 static void scene_enter_gameplay(Test_Scene* scene)
 {
   scene->mode = SCENE_MODE_GAMEPLAY;
   for (int pad_index = 0; pad_index < 2; ++pad_index) {
-    Input_Gameplay_Preset preset = scene->settings.gameplay_preset[pad_index];
-    input_action_bind(pad_index, input_schema_gameplay(preset), on_gameplay_action, scene);
+    input_action_set_schema(pad_index, scene->settings.gameplay_schema[pad_index]);
   }
 }
 
@@ -188,7 +227,7 @@ static void scene_enter_menu(Test_Scene* scene)
   scene->mode        = SCENE_MODE_MENU;
   scene->menu_cursor = 0;
   for (int pad_index = 0; pad_index < 2; ++pad_index) {
-    input_action_bind(pad_index, input_schema_ui(), on_menu_action, scene);
+    input_action_set_schema(pad_index, INPUT_SCHEMA_UI);
   }
 }
 
@@ -200,131 +239,127 @@ static void scene_reset_box(Test_Scene* scene)
   scene->box.h = BOX_SIZE_NORMAL;
 }
 
-// ----------------------------------------------------------------------------
-//  Callbacks: discrete, edge-triggered things
-// ----------------------------------------------------------------------------
-
-static void on_gameplay_action(int pad_index, Input_Action action, Input_Event event, void* user_data)
+//
+// Steps a pad's saved gameplay layout forward or back, wrapping. The layouts
+// are contiguous in Input_Schema so this is plain modular arithmetic.
+//
+static void settings_cycle_schema(Test_Scene* scene, int pad_index, int direction)
 {
-  Test_Scene* scene = user_data;
-  int         color_count = array_count(BOX_COLORS);
-
-  if (event != INPUT_EVENT_PRESSED) {
-    return;
-  }
-
-  switch (action) {
-    case INPUT_ACTION_COLOR_NEXT: {
-      scene->box_color_index = (scene->box_color_index + 1) % color_count;
-    } break;
-    case INPUT_ACTION_COLOR_PREV: {
-      scene->box_color_index = (scene->box_color_index + color_count - 1) % color_count;
-    } break;
-    case INPUT_ACTION_DROP_MARKER: {
-      if (scene->marker_count < MARKER_CAPACITY) {
-        Vector2* marker = &scene->markers[scene->marker_count++];
-        marker->x = scene->box.x + scene->box.w / 2 - MARKER_SIZE / 2;
-        marker->y = scene->box.y + scene->box.h / 2 - MARKER_SIZE / 2;
-      }
-    } break;
-    case INPUT_ACTION_CLEAR_MARKERS: {
-      scene->marker_count = 0;
-    } break;
-    case INPUT_ACTION_TOGGLE_OUTLINE: {
-      scene->box_outline ^= 1;
-    } break;
-    case INPUT_ACTION_RESET_POSITION: {
-      scene_reset_box(scene);
-    } break;
-    case INPUT_ACTION_PAUSE: {
-      scene_enter_menu(scene);
-    } break;
-    default: break;
-  }
-}
-
-static void menu_cycle_preset(Test_Scene* scene, int which, int direction)
-{
-  uint8_t* preset = &scene->settings.gameplay_preset[which];
-  *preset = (*preset + INPUT_GAMEPLAY_PRESET_COUNT + direction) % INPUT_GAMEPLAY_PRESET_COUNT;
-  strcpy(scene->status, "PRESET CHANGED (NOT SAVED)");
-}
-
-static void on_menu_action(int pad_index, Input_Action action, Input_Event event, void* user_data)
-{
-  Test_Scene* scene    = user_data;
-  int         on_preset_item = scene->menu_cursor == MENU_ITEM_P1_PRESET || scene->menu_cursor == MENU_ITEM_P2_PRESET;
-
-  if (event != INPUT_EVENT_PRESSED) {
-    return;
-  }
-
-  switch (action) {
-    case INPUT_ACTION_UI_LEFT: {
-      if (on_preset_item) menu_cycle_preset(scene, scene->menu_cursor, -1);
-    } break;
-    case INPUT_ACTION_UI_RIGHT: {
-      if (on_preset_item) menu_cycle_preset(scene, scene->menu_cursor, +1);
-    } break;
-    case INPUT_ACTION_UI_CONFIRM: {
-      switch (scene->menu_cursor) {
-        case MENU_ITEM_P1_PRESET:
-        case MENU_ITEM_P2_PRESET: menu_cycle_preset(scene, scene->menu_cursor, +1); break;
-        case MENU_ITEM_SAVE:      settings_save(scene);                             break;
-        case MENU_ITEM_LOAD:      settings_load(scene);                             break;
-      }
-    } break;
-    case INPUT_ACTION_UI_CANCEL:
-    case INPUT_ACTION_UI_MENU: {
-      scene_enter_gameplay(scene);
-    } break;
-    default: break;
-  }
+  int index = scene->settings.gameplay_schema[pad_index] - INPUT_SCHEMA_GAMEPLAY_FIRST;
+  index = (index + INPUT_SCHEMA_GAMEPLAY_COUNT + direction) % INPUT_SCHEMA_GAMEPLAY_COUNT;
+  scene->settings.gameplay_schema[pad_index] = INPUT_SCHEMA_GAMEPLAY_FIRST + index;
+  strcpy(scene->status, "LAYOUT CHANGED (NOT SAVED)");
 }
 
 // ----------------------------------------------------------------------------
-//  Per-frame update: continuous, polled things
+//  Per-frame update: everything is a poll
 // ----------------------------------------------------------------------------
+
+static void scene_update_gameplay(Test_Scene* scene)
+{
+  int color_count = array_count(g_box_colors);
+  int dx          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT);
+  int dy          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_UP,   INPUT_ACTION_MOVE_DOWN);
+  int speed       = BOX_SPEED_NORMAL;
+  int target_size = BOX_SIZE_NORMAL;
+
+  //
+  // Held things.
+  //
+  if (input_action_held(P1_PAD, INPUT_ACTION_BOOST))  speed = BOX_SPEED_BOOST;
+  if (input_action_held(P1_PAD, INPUT_ACTION_SLOW))   speed = BOX_SPEED_SLOW;
+  if (input_action_held(P1_PAD, INPUT_ACTION_GROW))   target_size = BOX_SIZE_LARGE;
+  if (input_action_held(P1_PAD, INPUT_ACTION_SHRINK)) target_size = BOX_SIZE_SMALL;
+
+  scene->box.x += dx * speed;
+  scene->box.y += dy * speed;
+
+  // ease the size towards the target, 2 px per frame, around the centre
+  if (scene->box.w < target_size) { scene->box.w += 2; scene->box.x -= 1; scene->box.y -= 1; }
+  if (scene->box.w > target_size) { scene->box.w -= 2; scene->box.x += 1; scene->box.y += 1; }
+  scene->box.h = scene->box.w;
+
+  scene->box.x = clamp(scene->box.x, RENDER_SCREEN_WIDTH  - scene->box.w, 0);
+  scene->box.y = clamp(scene->box.y, RENDER_SCREEN_HEIGHT - scene->box.h, 0);
+
+  //
+  // Tapped things. pressed() is true for exactly one frame per press.
+  //
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_NEXT)) {
+    scene->box_color_index = (scene->box_color_index + 1) % color_count;
+  }
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_PREV)) {
+    scene->box_color_index = (scene->box_color_index + color_count - 1) % color_count;
+  }
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_DROP_MARKER) && scene->marker_count < MARKER_CAPACITY) {
+    Vector2* marker = &scene->markers[scene->marker_count++];
+    marker->x = scene->box.x + scene->box.w / 2 - MARKER_SIZE / 2;
+    marker->y = scene->box.y + scene->box.h / 2 - MARKER_SIZE / 2;
+  }
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_CLEAR_MARKERS)) {
+    scene->marker_count = 0;
+  }
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_TOGGLE_OUTLINE)) {
+    scene->box_outline ^= 1;
+  }
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_RESET_POSITION)) {
+    scene_reset_box(scene);
+  }
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_PAUSE)) {
+    scene_enter_menu(scene);
+  }
+}
+
+static void scene_update_menu(Test_Scene* scene)
+{
+  int on_layout_item = scene->menu_cursor == MENU_ITEM_P1_SCHEMA || scene->menu_cursor == MENU_ITEM_P2_SCHEMA;
+
+  //
+  // Held-to-scroll cursor movement through the repeat helper.
+  //
+  if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_DOWN, MENU_REPEAT_DELAY_FRAMES, MENU_REPEAT_RATE_FRAMES)) {
+    scene->menu_cursor = (scene->menu_cursor + 1) % MENU_ITEM_COUNT;
+  }
+  if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_UP, MENU_REPEAT_DELAY_FRAMES, MENU_REPEAT_RATE_FRAMES)) {
+    scene->menu_cursor = (scene->menu_cursor + MENU_ITEM_COUNT - 1) % MENU_ITEM_COUNT;
+  }
+
+  if (on_layout_item && input_action_pressed(P1_PAD, INPUT_ACTION_UI_LEFT)) {
+    settings_cycle_schema(scene, scene->menu_cursor, -1);
+  }
+  if (on_layout_item && input_action_pressed(P1_PAD, INPUT_ACTION_UI_RIGHT)) {
+    settings_cycle_schema(scene, scene->menu_cursor, +1);
+  }
+
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_UI_CONFIRM)) {
+    switch (scene->menu_cursor) {
+      case MENU_ITEM_P1_SCHEMA:
+      case MENU_ITEM_P2_SCHEMA: {
+        settings_cycle_schema(scene, scene->menu_cursor, +1);
+      } break;
+      case MENU_ITEM_SAVE: {
+        settings_save(scene);
+      } break;
+      case MENU_ITEM_LOAD: {
+        settings_load(scene);
+      } break;
+    }
+  }
+
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_UI_CANCEL) ||
+      input_action_pressed(P1_PAD, INPUT_ACTION_UI_MENU)) {
+    scene_enter_gameplay(scene);
+  }
+}
 
 static void scene_update(Test_Scene* scene)
 {
   switch (scene->mode) {
     case SCENE_MODE_GAMEPLAY: {
-      //
-      // Digital axis: -1 / 0 / +1 per direction, both held cancels out.
-      //
-      int dx    = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT);
-      int dy    = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_UP,   INPUT_ACTION_MOVE_DOWN);
-      int speed = BOX_SPEED_NORMAL;
-      int target_size = BOX_SIZE_NORMAL;
-
-      if (input_action_held(P1_PAD, INPUT_ACTION_BOOST))  speed = BOX_SPEED_BOOST;
-      if (input_action_held(P1_PAD, INPUT_ACTION_SLOW))   speed = BOX_SPEED_SLOW;
-      if (input_action_held(P1_PAD, INPUT_ACTION_GROW))   target_size = BOX_SIZE_LARGE;
-      if (input_action_held(P1_PAD, INPUT_ACTION_SHRINK)) target_size = BOX_SIZE_SMALL;
-
-      scene->box.x += dx * speed;
-      scene->box.y += dy * speed;
-
-      // ease the size towards the target, 2 px per frame, around the centre
-      if (scene->box.w < target_size) { scene->box.w += 2; scene->box.x -= 1; scene->box.y -= 1; }
-      if (scene->box.w > target_size) { scene->box.w -= 2; scene->box.x += 1; scene->box.y += 1; }
-      scene->box.h = scene->box.w;
-
-      scene->box.x = clamp(scene->box.x, RENDER_SCREEN_WIDTH  - scene->box.w, 0);
-      scene->box.y = clamp(scene->box.y, RENDER_SCREEN_HEIGHT - scene->box.h, 0);
+      scene_update_gameplay(scene);
     } break;
-
     case SCENE_MODE_MENU: {
-      //
-      // Held-to-scroll menu navigation through the repeat helper.
-      //
-      if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_DOWN, MENU_REPEAT_DELAY_FRAMES, MENU_REPEAT_RATE_FRAMES)) {
-        scene->menu_cursor = (scene->menu_cursor + 1) % MENU_ITEM_COUNT;
-      }
-      if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_UP, MENU_REPEAT_DELAY_FRAMES, MENU_REPEAT_RATE_FRAMES)) {
-        scene->menu_cursor = (scene->menu_cursor + MENU_ITEM_COUNT - 1) % MENU_ITEM_COUNT;
-      }
+      scene_update_menu(scene);
     } break;
   }
 }
@@ -333,105 +368,54 @@ static void scene_update(Test_Scene* scene)
 //  Drawing
 // ----------------------------------------------------------------------------
 
-//
-// One character per action, in enum order, shown when held. Lets a tester
-// see exactly which actions the current schema is producing from their pad.
-//
-static const char ACTION_LETTERS[INPUT_ACTION_COUNT] = {
-  [INPUT_ACTION_UI_UP]          = 'u',
-  [INPUT_ACTION_UI_DOWN]        = 'd',
-  [INPUT_ACTION_UI_LEFT]        = 'l',
-  [INPUT_ACTION_UI_RIGHT]       = 'r',
-  [INPUT_ACTION_UI_CONFIRM]     = 'o',
-  [INPUT_ACTION_UI_CANCEL]      = 'x',
-  [INPUT_ACTION_UI_MENU]        = 'm',
-  [INPUT_ACTION_MOVE_UP]        = 'U',
-  [INPUT_ACTION_MOVE_DOWN]      = 'D',
-  [INPUT_ACTION_MOVE_LEFT]      = 'L',
-  [INPUT_ACTION_MOVE_RIGHT]     = 'R',
-  [INPUT_ACTION_COLOR_NEXT]     = 'C',
-  [INPUT_ACTION_COLOR_PREV]     = 'c',
-  [INPUT_ACTION_GROW]           = 'G',
-  [INPUT_ACTION_SHRINK]         = 'g',
-  [INPUT_ACTION_BOOST]          = 'B',
-  [INPUT_ACTION_SLOW]           = 'b',
-  [INPUT_ACTION_DROP_MARKER]    = 'M',
-  [INPUT_ACTION_CLEAR_MARKERS]  = 'm',
-  [INPUT_ACTION_TOGGLE_OUTLINE] = 'O',
-  [INPUT_ACTION_RESET_POSITION] = 'Z',
-  [INPUT_ACTION_HELP]           = '?',
-  [INPUT_ACTION_PAUSE]          = '!',
-};
+static char schema_letter(int schema)
+{
+  return (schema >= INPUT_SCHEMA_GAMEPLAY_FIRST) ? 'A' + (schema - INPUT_SCHEMA_GAMEPLAY_FIRST) : 'U';
+}
 
 //
-// Short labels for the help overlay, in enum order.
+// "P1 TYPE 4  UP RIGHT BOOST" - the labels of whatever actions the pad's
+// current schema is producing right now. Lets a tester see the mapping live.
 //
-static const char* const ACTION_LABELS[INPUT_ACTION_COUNT] = {
-  [INPUT_ACTION_UI_UP]          = "UI UP",
-  [INPUT_ACTION_UI_DOWN]        = "UI DOWN",
-  [INPUT_ACTION_UI_LEFT]        = "UI LEFT",
-  [INPUT_ACTION_UI_RIGHT]       = "UI RIGHT",
-  [INPUT_ACTION_UI_CONFIRM]     = "CONFIRM",
-  [INPUT_ACTION_UI_CANCEL]      = "CANCEL",
-  [INPUT_ACTION_UI_MENU]        = "MENU",
-  [INPUT_ACTION_MOVE_UP]        = "MOVE UP",
-  [INPUT_ACTION_MOVE_DOWN]      = "MOVE DOWN",
-  [INPUT_ACTION_MOVE_LEFT]      = "MOVE LEFT",
-  [INPUT_ACTION_MOVE_RIGHT]     = "MOVE RIGHT",
-  [INPUT_ACTION_COLOR_NEXT]     = "COLOR NEXT",
-  [INPUT_ACTION_COLOR_PREV]     = "COLOR PREV",
-  [INPUT_ACTION_GROW]           = "GROW",
-  [INPUT_ACTION_SHRINK]         = "SHRINK",
-  [INPUT_ACTION_BOOST]          = "BOOST",
-  [INPUT_ACTION_SLOW]           = "SLOW",
-  [INPUT_ACTION_DROP_MARKER]    = "DROP MARKER",
-  [INPUT_ACTION_CLEAR_MARKERS]  = "CLEAR MARKERS",
-  [INPUT_ACTION_TOGGLE_OUTLINE] = "OUTLINE",
-  [INPUT_ACTION_RESET_POSITION] = "RESET POS",
-  [INPUT_ACTION_HELP]           = "HELP",
-  [INPUT_ACTION_PAUSE]          = "PAUSE",
-};
-
 static void draw_pad_debug_line(int pad_index, int y)
 {
   char line[64];
   int  n = sprintf(line, "P%d TYPE %X ", pad_index + 1, input_pad_type(pad_index));
 
-  for (int action = 0; action < INPUT_ACTION_COUNT; ++action) {
-    line[n++] = input_action_held(pad_index, action) ? ACTION_LETTERS[action] : '.';
+  for (int action = 0; action < INPUT_ACTION_COUNT && n < 40; ++action) {
+    if (input_action_held(pad_index, action)) {
+      n += snprintf(line + n, sizeof(line) - n, " %s", g_action_labels[action]);
+    }
   }
-  line[n] = 0;
 
   render_text(8, y, 0, line);
 }
 
 //
-// Prints every bound action of the pad's CURRENT schema with its button
-// name, pulled from the schema table itself. Flip the preset in the menu and
-// come back: this list changes without any code in this file knowing how.
+// Prints every gameplay action with its button name for the pad's CURRENT
+// schema, pulled from the schema table itself. Flip the layout in the menu
+// and come back: this list changes without this file knowing how.
 //
 static void draw_help_overlay(int pad_index)
 {
-  const Input_Schema* schema = input_action_current_schema(pad_index);
-  char binding[40];
-  char line[64];
-  int  y = 62;
+  Input_Schema schema = input_action_get_schema(pad_index);
+  char         line[64];
+  int          y = 62;
 
   render_tile(16, 56, 288, 172, 0, 0, 0, 2);
-  sprintf(line, "P%d BINDINGS (PRESET %c)", pad_index + 1, 'A' + (schema == input_schema_gameplay(INPUT_GAMEPLAY_PRESET_B)));
+  sprintf(line, "P%d BINDINGS (LAYOUT %c)", pad_index + 1, schema_letter(schema));
   render_text(24, y, 0, line);
   y += 12;
 
   for (int action = INPUT_ACTION_MOVE_UP; action < INPUT_ACTION_COUNT; ++action, y += 9) {
-    input_schema_describe(schema, action, binding, sizeof(binding));
-    sprintf(line, "%-14s %s", ACTION_LABELS[action], binding);
+    sprintf(line, "%-8s %s", g_action_labels[action], input_action_button_name(schema, action));
     render_text(24, y, 0, line);
   }
 }
 
 static void draw_box(Test_Scene* scene)
 {
-  const uint8_t* color = BOX_COLORS[scene->box_color_index];
+  const uint8_t* color = g_box_colors[scene->box_color_index];
   Rectangle32    b     = scene->box;
 
   if (scene->box_outline) {
@@ -448,16 +432,36 @@ static void draw_box(Test_Scene* scene)
   }
 }
 
+static void draw_menu(Test_Scene* scene)
+{
+  char line[64];
+  int  y = 116;
+
+  render_tile(52, 104, 216, 92, 0, 0, 0, 2);
+
+  for (int item = 0; item < MENU_ITEM_COUNT; ++item, y += 12) {
+    char cursor = item == scene->menu_cursor ? '>' : ' ';
+    if (item == MENU_ITEM_P1_SCHEMA || item == MENU_ITEM_P2_SCHEMA) {
+      sprintf(line, "%c %s: < TYPE %c >", cursor, g_menu_labels[item], schema_letter(scene->settings.gameplay_schema[item]));
+    } else {
+      sprintf(line, "%c %s", cursor, g_menu_labels[item]);
+    }
+    render_text(64, y, 0, line);
+  }
+  render_text(64, y + 8,  0, "CONFIRM/LEFT/RIGHT: CHANGE");
+  render_text(64, y + 18, 0, "CANCEL OR MENU: BACK TO GAME");
+}
+
 static void scene_draw(Test_Scene* scene)
 {
   char line[64];
 
   draw_box(scene);
 
-  sprintf(line, "MODE %s  P1 PRESET %c  P2 PRESET %c",
+  sprintf(line, "MODE %s  P1 LAYOUT %c  P2 LAYOUT %c",
           scene->mode == SCENE_MODE_MENU ? "MENU" : "GAME",
-          'A' + scene->settings.gameplay_preset[0],
-          'A' + scene->settings.gameplay_preset[1]);
+          schema_letter(scene->settings.gameplay_schema[0]),
+          schema_letter(scene->settings.gameplay_schema[1]));
   render_text(8, 8, 0, line);
 
   draw_pad_debug_line(P1_PAD, 20);
@@ -466,22 +470,7 @@ static void scene_draw(Test_Scene* scene)
   render_text(8, 44, 0, scene->status);
 
   if (scene->mode == SCENE_MODE_MENU) {
-    static const char* MENU_LABELS[MENU_ITEM_COUNT] = { "P1 PRESET", "P2 PRESET", "SAVE TO CARD", "LOAD FROM CARD" };
-    int y = 116;
-
-    render_tile(52, 104, 216, 92, 0, 0, 0, 2);
-
-    for (int item = 0; item < MENU_ITEM_COUNT; ++item, y += 12) {
-      char cursor = item == scene->menu_cursor ? '>' : ' ';
-      if (item == MENU_ITEM_P1_PRESET || item == MENU_ITEM_P2_PRESET) {
-        sprintf(line, "%c %s: < TYPE %c >", cursor, MENU_LABELS[item], 'A' + scene->settings.gameplay_preset[item]);
-      } else {
-        sprintf(line, "%c %s", cursor, MENU_LABELS[item]);
-      }
-      render_text(64, y, 0, line);
-    }
-    render_text(64, y + 8, 0, "CONFIRM/LEFT/RIGHT: CHANGE");
-    render_text(64, y + 18, 0, "CANCEL OR MENU: BACK TO GAME");
+    draw_menu(scene);
   } else if (input_action_held(P1_PAD, INPUT_ACTION_HELP)) {
     draw_help_overlay(P1_PAD);
   } else {
@@ -524,21 +513,25 @@ int main(int argc, const char **argv)
 
   for (;;) {
     //
-    // Frame order matters:
-    //   input_pad_frame     snapshot "last frame" pad state
-    //   ...build frame...   (reads input that arrived during the previous vblank)
-    //   render_end_frame    DrawSync + VSync: the BIOS refreshes the pad
-    //                       buffers during this vblank
-    //   input_action_frame  edges are now (last, new), fire callbacks
+    // Frame order matters. pressed() means "down now, up in the snapshot",
+    // so the snapshot has to be taken from the OLD packet, then a vblank
+    // has to deliver a NEW packet, and only then may we poll:
     //
-    input_pad_frame();
-
-    render_begin_frame();
+    //   scene_update       poll actions: "now" is the packet from the last
+    //                      vblank, "last frame" is the snapshot before it
+    //   scene_draw         build the frame
+    //   input_pad_frame    snapshot the packet we just finished reading and
+    //                      bump the held-frame counters
+    //   render_end_frame   DrawSync + VSync: the BIOS writes a fresh packet
+    //                      during this vblank, ready for the next poll
+    //
+    // Calling input_pad_frame() right before scene_update() instead would
+    // make snapshot and current identical, and no tap would ever register.
+    //
     scene_update(&scene);
     scene_draw(&scene);
+    input_pad_frame();
     render_end_frame();
-
-    input_action_frame();
   }
 
   return 0;
