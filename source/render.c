@@ -127,7 +127,7 @@ void render_initialize(void)
 // and walks backwards, so higher z is processed (drawn) first and ends up
 // behind lower z.
 //
-static void* _new_primitive(int z, size_t size)
+void* _new_primitive(int z, size_t size)
 {
   Render_Buffer* buffer    = &g_buffers[g_active_buffer];
   uint8_t*       primitive = g_next_packet;

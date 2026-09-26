@@ -62,7 +62,7 @@ struct Font {
 // the intended usage is mostly to just load into VRAM as fast
 // as possible and forget about these pointers.
 //
-Font      font_load_from_memory(uint8_t* data, uint8_t data_size);
+Font      font_load_from_memory(uint8_t* data, uint32_t data_size);
 
 TIM_IMAGE font_get_tim_info(Font* font);
 Vector2   font_get_cstr_dimensions(Font* font, const char* text);

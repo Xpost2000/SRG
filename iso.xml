@@ -63,6 +63,8 @@ ${PROJECT_SOURCE_DIR}.
     <directory_tree>
       <dir name="RES">
 	<file name="SAVICO.TIM" type="data" source="${PROJECT_SOURCE_DIR}/res/savico.tim"/>
+	<file name="FONT1.SRGFNT" type="data" source="${PROJECT_SOURCE_DIR}/res/kagesans.srgfnt"/>
+	<file name="FONT2.SRGFNT" type="data" source="${PROJECT_SOURCE_DIR}/res/SaikyoSerif.srgfnt"/>
       </dir>
       <file name="SYSTEM.CNF"		type="data" source="${PROJECT_SOURCE_DIR}/system.cnf" />
       <file name="GAME.EXE"	type="data" source="game.exe" />

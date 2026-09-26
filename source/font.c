@@ -70,10 +70,11 @@ static Font font_load_from_serializer(Serializer* serializer)
   return result;
 }
 
-Font font_load_from_memory(uint8_t* data, uint8_t data_size)
+Font font_load_from_memory(uint8_t* data, uint32_t data_size)
 {
   Serializer serializer;
 
+  _debugprintf("[FONT] reading font file data that is %d bytes long", data_size);
   serializer = serializer_from_memory(data, data_size);
 
   return font_load_from_serializer(&serializer);
@@ -142,8 +143,8 @@ Rectangle32 font_get_glyph_rect(Font* font, uint8_t character)
   tile_column = tileid % font->columns;
   tile_row    = tileid / font->columns;
 
-  result.x = font->glyph_width * tile_column;
-  result.y = font->glyph_height * tile_row;
+  result.x = font->glyph_width/2 * tile_column;
+  result.y = font->glyph_height/2 * tile_row;
   result.w = font->glyph_width;
   result.h = font->glyph_height;
 
