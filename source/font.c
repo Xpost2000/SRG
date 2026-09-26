@@ -12,6 +12,12 @@ static Font_TIM_Image_PixelInformation tim_pixel_information_load_from_serialize
   result.height = serializer_readu16(serializer);
   result.pixels = (uint16_t*) serializer_read_bytes(serializer, sizeof(uint16_t) * result.width * result.height);
 
+  _debugprintf("[FONT] tim.pixelinformation.length: %d (%x)", result.length, result.length);
+  _debugprintf("[FONT] tim.pixelinformation.vramx:  %d (%x)", result.x, result.x);
+  _debugprintf("[FONT] tim.pixelinformation.vramy:  %d (%x)", result.y, result.y);
+  _debugprintf("[FONT] tim.pixelinformation.width:  %d (%x)", result.width, result.width);
+  _debugprintf("[FONT] tim.pixelinformation.height: %d (%x)", result.height, result.height);
+
   return result;
 }
 
@@ -29,7 +35,15 @@ static Font_TIM_Image tim_load_from_serializer(Serializer* serializer)
   _ = serializer_readu8(serializer);
 
   result.flags = serializer_readu32(serializer);
+
+  _debugprintf("[FONT] tim.tag:      %d (%x)", result.tag, result.tag);
+  _debugprintf("[FONT] tim.version:  %d (%x)", result.version, result.version);
+  _debugprintf("[FONT] tim.flags:    %d (%x)", result.flags, result.flags);
+
+  _debugprintf("[FONT] CLUT Pixel Information");
   result.clut  = tim_pixel_information_load_from_serializer(serializer);
+
+  _debugprintf("[FONT] Image Pixel Information");
   result.image = tim_pixel_information_load_from_serializer(serializer);
 
   return result;
@@ -45,6 +59,12 @@ static Font font_load_from_serializer(Serializer* serializer)
   result.rows	      = serializer_readi8(serializer);
 
   serializer_read_into_bytes(serializer, result.glyphmap, sizeof(result.glyphmap));
+
+  _debugprintf("[FONT] glyph_width:  %d (%x)", result.glyph_width, result.glyph_width);
+  _debugprintf("[FONT] glyph_height: %d (%x)", result.glyph_height, result.glyph_height);
+  _debugprintf("[FONT] columns:      %d (%x)", result.columns, result.columns);
+  _debugprintf("[FONT] rows:         %d (%x)", result.rows, result.rows);
+
   result.tim = tim_load_from_serializer(serializer);
 
   return result;
