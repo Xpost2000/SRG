@@ -13,6 +13,12 @@
 // why I don't think this tool should have a super high investment as we
 // are probably not making / generating new fonts all the time.
 //
+
+#if 0
+fontbuild KageSans.png 9 9 fontmap.txt KageSans
+fontbuild SaikyoSerif.png 9 9 fontmap2.txt SaikyoSerif
+#endif
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -129,8 +135,9 @@ int get_color_index_from_palette(Color32u8 color)
   // Any transparent color will be
   // using index 0 which we will always consider transparent.
   //
-  if (color.a == 0)
+  if (color.a == 0) {
     return 0;
+  }
   
   for (i = 0; i < g_palette_used; ++i) {
     if (color.data_u32 == g_palette[i].data_u32) {
@@ -141,14 +148,8 @@ int get_color_index_from_palette(Color32u8 color)
   return -1;
 }
 
-static void output_tim(TIM_Image* timimage, char* filebasename)
+static void write_tim_to_FILE(TIM_Image* timimage, FILE* f)
 {
-  char tmp[256];
-  FILE* f;
-
-  snprintf(tmp, 256, "%s.tim", filebasename);
-  f = fopen(tmp, "wb+");
-
   fwrite(&timimage->tag, sizeof(uint8_t), 1, f);
   fwrite(&timimage->version, sizeof(uint8_t), 1, f);
   fwrite(&timimage->_pad0, sizeof(uint8_t), 1, f);
@@ -169,9 +170,61 @@ static void output_tim(TIM_Image* timimage, char* filebasename)
   fwrite(&timimage->image_width, sizeof(uint16_t), 1, f);
   fwrite(&timimage->image_height, sizeof(uint16_t), 1, f);
   fwrite(timimage->image, sizeof(uint16_t) * timimage->image_width * timimage->image_height, 1, f);
+}
+
+static uint8_t* read_entire_file(char* filename)
+{
+  FILE* f;
+  uint8_t* result;
+  size_t length;
+
+
+  f = fopen(filename, "rb+");
+
+  fseek(f, 0, SEEK_END);
+  length = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  result = malloc(length+1);
+  fread(result, 1, length, f);
+  printf("%s (%d)\n", result, length);
+  result[length] = 0;
+
+  return result;
+}
+
+static void output_tim(TIM_Image* timimage, char* filebasename)
+{
+  char tmp[256];
+  FILE* f;
+
+  snprintf(tmp, 256, "%s.tim", filebasename);
+  f = fopen(tmp, "wb+");
+
+  write_tim_to_FILE(timimage, f);
 
   fclose(f);
 }
+
+static void output_srgfont(SRG_Font* font, char* filebasename)
+{
+  char tmp[256];
+  FILE* f;
+
+  snprintf(tmp, 256, "%s.srgfnt", filebasename);
+  f = fopen(tmp, "wb+");
+
+  fwrite(&font->glyph_width, sizeof(int8_t), 1, f);
+  fwrite(&font->glyph_height, sizeof(int8_t), 1, f);
+  fwrite(&font->columns, sizeof(int8_t), 1, f);
+  fwrite(&font->rows, sizeof(int8_t), 1, f);
+  fwrite(&font->glyphmap, sizeof(font->glyphmap), 1, f);
+
+  write_tim_to_FILE(&font->image_contents, f);
+
+  fclose(f);
+}
+
 
 void insert_palette_color(Color32u8 color)
 {
@@ -375,11 +428,6 @@ int main(int argc, char** argv)
       }
 
       cursor_x += glyph_width;
-
-      /* if (cursor_x >= TPAGE_PIXEL_WIDTH) { */
-      /* 	cursor_x = 0; */
-      /* 	cursor_y += glyph_height; */
-      /* } */
     }
   }
 
@@ -394,9 +442,87 @@ int main(int argc, char** argv)
     output_tim(&srgfont.image_contents, output_image_filename);
   }
 
+  printf("Reading glyphmap and doing bindings\n");
+  {
+    uint8_t* glyph_map_string;
+    int i;
+    int slen;
+
+    glyph_map_string = read_entire_file(glyph_map_filename);
+    slen = strlen((const char*) glyph_map_string);
+
+    printf("glyphmap is %d characters long.\n");
+    memset(srgfont.glyphmap, -1, sizeof(srgfont.glyphmap));
+
+    for (i = 0; i < slen; ++i) {
+      unsigned c = glyph_map_string[i];
+
+      //
+      // for space you can just advance by glyph_width and
+      // it is basically *not* noticable, so it's gonna be the "free"
+      // character for if there is any padding.
+      //
+      if (c != ' ') {
+	srgfont.glyphmap[c] = i;
+	printf("glyphmap[%c] = tile %d\n", c, i);
+      } else {
+	srgfont.glyphmap[c] = (uint8_t) -1; // wrap around.
+	printf("glyphmap[%c] = n/a\n", c);
+     }
+    }
+
+    //
+    // special case alphabetical characters
+    //
+    // usually font sets will have one or the other
+    // so to allow strings to work for both, just remap them
+    // to each other.
+    //
+    for (i = 0; i < 26; ++i) {
+      if (srgfont.glyphmap[i+'a'] == (uint8_t) -1) {
+	srgfont.glyphmap[i+'a'] = srgfont.glyphmap[i+'A'];
+      } else if (srgfont.glyphmap[i+'A'] == (uint8_t) -1) {
+	srgfont.glyphmap[i+'A'] = srgfont.glyphmap[i+'a'];
+      }
+    }
+  }
+
   printf("Outputting SRGFONT\n");
   {
-    
+    srgfont.rows = rows;
+    srgfont.columns = cols;
+    srgfont.glyph_width = glyph_width;
+    srgfont.glyph_height = glyph_height;
+
+    output_srgfont(&srgfont, output_image_filename);
+
+    printf("outputted srg font to: %s.srgfnt\n", output_image_filename);
+    {
+      int i;
+
+      printf("glyph_width: %d\n", srgfont.glyph_width);
+      printf("glyph_height: %d\n", srgfont.glyph_height);
+      printf("columns: %d\n", srgfont.columns);
+      printf("rows: %d\n", srgfont.rows);
+      printf("--- glyphmap\n");
+      for (i = 0; i < 256; ++i) {
+	unsigned c = i;
+	unsigned v = srgfont.glyphmap[i];
+
+	//
+	// for space you can just advance by glyph_width and
+	// it is basically *not* noticable, so it's gonna be the "free"
+	// character for if there is any padding.
+	//
+	if (c != ' ' && v != (uint8_t)-1) {
+	  printf("glyphmap[%d(%c)] = tile %d\n", c, c, v);
+	}
+      }
+      printf("--- end glyphmap\n");
+      printf("tim.image_length: %d\n", srgfont.image_contents.image_length);
+      printf("tim.image_width(16bpp): %d (actual): %d\n", srgfont.image_contents.image_width, srgfont.image_contents.image_width*4);
+      printf("tim.image_height(16bpp): %d\n", srgfont.image_contents.image_height);
+    }
   }
 
   return 0;
