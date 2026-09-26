@@ -501,6 +501,11 @@ int main(int argc, const char **argv)
       printf("[MAIN] icon file not found on disc\n");
     }
   }
+  
+  {
+    uintptr_t remaining_memory = system_get_remaining_allocatable_memory();
+    _debugprintf("[MEMORY]: %d bytes, %d kb, %d mb left\n", remaining_memory, remaining_memory / 1024, remaining_memory / (1024*1024));
+  }
 
   scene_reset_box(&scene);
   settings_load(&scene);
