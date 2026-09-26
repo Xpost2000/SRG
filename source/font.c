@@ -1,84 +1,62 @@
+#include "serializer.h"
 #include "font.h"
 
-static Font_TIM_Image_PixelInformation tim_pixel_information_load_from_memory(uint8_t* data, uint8_t data_size)
+static Font_TIM_Image_PixelInformation tim_pixel_information_load_from_serializer(Serializer* serializer)
 {
   Font_TIM_Image_PixelInformation result;
-  uint8_t*       data_start = data;
 
-  result.length = *(uint32_t*) data;
-  data += sizeof(uint32_t);
+  result.length = serializer_readu32(serializer);
+  result.x	= serializer_readu16(serializer);
+  result.y	= serializer_readu16(serializer);
+  result.width	= serializer_readu16(serializer);
+  result.height = serializer_readu16(serializer);
+  result.pixels = (uint16_t*) serializer_read_bytes(serializer, sizeof(uint16_t) * result.width * result.height);
 
-  result.x = *(uint16_t*) data;
-  data += sizeof(uint16_t);
-
-  result.y = *(uint16_t*) data;
-  data += sizeof(uint16_t);
-
-  result.width = *(uint16_t*) data;
-  data += sizeof(uint16_t);
-
-  result.height = *(uint16_t*) data;
-  data += sizeof(uint16_t);
-
-  result.pixels = (uint16_t*) data;
-  data += sizeof(uint16_t) * result.width * result.height;
-
-  assert(((data - data_start) > data_size) && "[FONT] cursor exceeded specified data_size.");
   return result;
 }
 
-static Font_TIM_Image tim_load_from_memory(uint8_t* data, uint8_t data_size)
+static Font_TIM_Image tim_load_from_serializer(Serializer* serializer)
 {
   Font_TIM_Image result = {};
-  uint8_t*       data_start = data;
+  uint8_t _;
 
-  result.tag = *(uint8_t*)data;
-  data += sizeof(uint8_t);
+  UNUSED(_);
 
-  result.version = *(uint8_t*)data;
-  data += sizeof(uint8_t);
+  result.tag	 = serializer_readu8(serializer);
+  result.version = serializer_readu8(serializer);
 
-  //
-  // _pad0
-  // _pad1
-  //
-  data += sizeof(uint8_t);
-  data += sizeof(uint8_t);
+  _ = serializer_readu8(serializer);
+  _ = serializer_readu8(serializer);
 
-  result.flags = *(uint32_t*)data;
-  data += sizeof(uint32_t);
+  result.flags = serializer_readu32(serializer);
+  result.clut  = tim_pixel_information_load_from_serializer(serializer);
+  result.image = tim_pixel_information_load_from_serializer(serializer);
 
-  tim_pixel_information_load_from_memory(data, data_size - (data - data_start));
-  tim_pixel_information_load_from_memory(data, data_size - (data - data_start));
+  return result;
+}
 
-  assert(((data - data_start) > data_size) && "[FONT] cursor exceeded specified data_size.");
+static Font font_load_from_serializer(Serializer* serializer)
+{
+  Font		result = {};
+
+  result.glyph_width  = serializer_readu8(serializer);
+  result.glyph_height = serializer_readu8(serializer);
+  result.columns      = serializer_readi8(serializer);
+  result.rows	      = serializer_readi8(serializer);
+
+  serializer_read_into_bytes(serializer, result.glyphmap, sizeof(result.glyphmap));
+  result.tim = tim_load_from_serializer(serializer);
+
   return result;
 }
 
 Font font_load_from_memory(uint8_t* data, uint8_t data_size)
 {
-  Font		result = {};
-  uint8_t*      data_start = data;
+  Serializer serializer;
 
-  result.glyph_width = *(int8_t*)data;
-  data += sizeof(int8_t);
+  serializer = serializer_from_memory(data, data_size);
 
-  result.glyph_height = *(int8_t*)data;
-  data += sizeof(int8_t);
-
-  result.columns = *(int8_t*)data;
-  data += sizeof(int8_t);
-
-  result.rows = *(int8_t*)data;
-  data += sizeof(int8_t);
-
-  memcpy(result.glyphmap, data, sizeof(result.glyphmap));
-  data += sizeof(uint8_t) * 256;
-
-  result.tim = tim_load_from_memory(data, data_size - (data - data_start));
-
-  assert(((data - data_start) > data_size) && "[FONT] cursor exceeded specified data_size.");
-  return result;
+  return font_load_from_serializer(&serializer);
 }
 
 TIM_IMAGE font_get_tim_info(Font* font)
