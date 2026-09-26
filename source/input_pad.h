@@ -16,10 +16,31 @@
  * enough.
  */
 
+//
+// This is the LOW LEVEL pad module. It knows about raw button masks
+// (PAD_CROSS, PAD_UP, ...) and nothing else.
+//
+// Game code should not call the mask functions directly; it should go
+// through input_action.h, which maps buttons to named actions. If you
+// bypass it, a player's chosen button layout silently stops applying to
+// your code path (Final Fantasy VII shipped with exactly that bug).
+//
+// Timing: the BIOS driver refreshes the pad buffers inside the vblank
+// interrupt, so a frame's pad state is only complete AFTER VSync(0).
+// Read pads after VSync, and call input_pad_frame() once per frame BEFORE
+// VSync so the "last frame" snapshot is taken first.
+//
+
 void input_pad_initialize(void);
 void input_pad_start(void);
 void input_pad_frame(void);
 int  input_pad_is_valid(int pad_index);
+
+//
+// Reports the PadTypeID (psxpad.h) of whatever is plugged in, or
+// PAD_ID_NONE when nothing is responding. Mostly for debug displays.
+//
+int  input_pad_type(int pad_index);
 
 //
 // NOTE(jerry):
@@ -28,7 +49,11 @@ int  input_pad_is_valid(int pad_index);
 //
 // Caller checks for gamepad validity.
 //
-int input_pad_mask_button(int pad_index, uint16_t buttonmask);
-int input_pad_mask_button_pressed(int pad_index, uint16_t buttonmask);
+// A mask may OR several buttons together; the query is true if ANY of them
+// satisfies it.
+//
+int input_pad_mask_button(int pad_index, uint16_t buttonmask);          // held this frame
+int input_pad_mask_button_pressed(int pad_index, uint16_t buttonmask);  // down now, up last frame
+int input_pad_mask_button_released(int pad_index, uint16_t buttonmask); // up now, down last frame
 
 #endif
