@@ -104,7 +104,7 @@ so the enum is append-only.
 | Polling only, no callbacks | A first version had callbacks. They split one frame's logic across three functions, let game code rebind the input layer from inside the input layer's own dispatch loop, and needed a re-entrancy guard to survive it. Polling is sequential code you read top to bottom, and a schema switch simply applies to the next poll. |
 | Held-frame counters live in `input_pad`, per button | They track physical buttons, so they do not care which schema is live and never need resetting on a schema switch. The action layer stays stateless apart from "which schema". |
 | The input layer never touches the memory card | The schema choice is game save data. Keeping card start/stop quirks out of the input code keeps it small. |
-| Menu auto-repeat is in the input layer | Every menu needs it. It is a few lines over the held-frame counter. |
+| Menu auto-repeat is in the input layer, with a fixed cadence | Every menu needs it and every menu should feel the same, so the delay and rate are two constants in `input_action.h`, not parameters a call site could get wrong. |
 
 ## Using it
 
@@ -210,8 +210,10 @@ schema back.
 ### 6. Menu navigation with auto-repeat
 
 ```c
-// true on first press, then every 6 frames after being held 20 frames
-if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_DOWN, 20, 6)) {
+// true on first press, then every INPUT_REPEAT_RATE_FRAMES after being held
+// INPUT_REPEAT_DELAY_FRAMES. One cadence for every menu; tune the constants
+// in input_action.h, never per call site.
+if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_DOWN)) {
   menu->cursor = (menu->cursor + 1) % MENU_ITEM_COUNT;
 }
 if (input_action_pressed(P1_PAD, INPUT_ACTION_UI_CANCEL)) {

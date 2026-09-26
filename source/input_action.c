@@ -117,7 +117,7 @@ int input_action_released(int pad_index, Input_Action action)
   return mask && input_pad_mask_button_released(pad_index, mask);
 }
 
-int input_action_repeat(int pad_index, Input_Action action, int delay_frames, int rate_frames)
+int input_action_repeat(int pad_index, Input_Action action)
 {
   uint16_t mask = _mask(pad_index, action);
   int      previous_frames;
@@ -133,8 +133,8 @@ int input_action_repeat(int pad_index, Input_Action action, int delay_frames, in
   if (previous_frames == 0) {
     return 1;
   }
-  if (rate_frames > 0 && previous_frames >= delay_frames) {
-    return ((previous_frames - delay_frames) % rate_frames) == 0;
+  if (previous_frames >= INPUT_REPEAT_DELAY_FRAMES) {
+    return ((previous_frames - INPUT_REPEAT_DELAY_FRAMES) % INPUT_REPEAT_RATE_FRAMES) == 0;
   }
   return 0;
 }

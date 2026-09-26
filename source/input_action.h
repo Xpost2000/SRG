@@ -102,10 +102,15 @@ int input_action_released(int pad_index, Input_Action action);
 
 //
 // Menu auto-repeat: true on the first frame of a press, then again every
-// rate_frames once the action has been held for delay_frames. At 60 Hz,
-// (20, 6) feels like a typical console menu.
+// INPUT_REPEAT_RATE_FRAMES once the action has been held for
+// INPUT_REPEAT_DELAY_FRAMES. One cadence for the whole game, on purpose, so
+// every menu feels the same. Tuned for 60 Hz; a 50 Hz PAL build would want
+// slightly smaller numbers.
 //
-int input_action_repeat(int pad_index, Input_Action action, int delay_frames, int rate_frames);
+#define INPUT_REPEAT_DELAY_FRAMES (20)
+#define INPUT_REPEAT_RATE_FRAMES  (6)
+
+int input_action_repeat(int pad_index, Input_Action action);
 
 //
 // -1, 0 or +1 from two opposing actions (both held = 0). Digital only, by

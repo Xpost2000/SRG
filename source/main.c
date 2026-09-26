@@ -61,9 +61,6 @@ struct Game_Settings {
 #define MARKER_CAPACITY (24)
 #define MARKER_SIZE     (4)
 
-#define MENU_REPEAT_DELAY_FRAMES (20)
-#define MENU_REPEAT_RATE_FRAMES  (6)
-
 typedef struct Test_Scene Test_Scene;
 
 enum Scene_Mode {
@@ -317,10 +314,10 @@ static void scene_update_menu(Test_Scene* scene)
   //
   // Held-to-scroll cursor movement through the repeat helper.
   //
-  if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_DOWN, MENU_REPEAT_DELAY_FRAMES, MENU_REPEAT_RATE_FRAMES)) {
+  if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_DOWN)) {
     scene->menu_cursor = (scene->menu_cursor + 1) % MENU_ITEM_COUNT;
   }
-  if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_UP, MENU_REPEAT_DELAY_FRAMES, MENU_REPEAT_RATE_FRAMES)) {
+  if (input_action_repeat(P1_PAD, INPUT_ACTION_UI_UP)) {
     scene->menu_cursor = (scene->menu_cursor + MENU_ITEM_COUNT - 1) % MENU_ITEM_COUNT;
   }
 
