@@ -56,4 +56,12 @@ int input_pad_mask_button(int pad_index, uint16_t buttonmask);          // held 
 int input_pad_mask_button_pressed(int pad_index, uint16_t buttonmask);  // down now, up last frame
 int input_pad_mask_button_released(int pad_index, uint16_t buttonmask); // up now, down last frame
 
+//
+// How many PREVIOUS frames in a row the button has been down, not counting
+// the current one. So on the frame a button is first pressed this reads 0,
+// the next frame 1, and so on. For an OR'd mask it is the largest count of
+// any button in the mask. Used for menu auto-repeat.
+//
+int input_pad_mask_button_held_frames(int pad_index, uint16_t buttonmask);
+
 #endif

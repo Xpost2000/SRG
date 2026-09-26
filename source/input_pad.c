@@ -13,8 +13,9 @@
 // in _input_pad_mask_button is what protects us: type 0 falls to the
 // default case and reports nothing pressed.
 //
-static PADTYPE g_padpacket[2];
-static PADTYPE g_last_padpacket[2]; // last _frame
+static PADTYPE  g_padpacket[2];
+static PADTYPE  g_last_padpacket[2]; // last _frame
+static uint16_t g_held_frames[2][16]; // consecutive previous frames each button bit was down
 
 void input_pad_initialize(void)
 {
@@ -114,8 +115,40 @@ int input_pad_mask_button(int pad_index, uint16_t buttonmask)
   return _input_pad_mask_button(pad_index, buttonmask, 1);
 }
 
+int input_pad_mask_button_held_frames(int pad_index, uint16_t buttonmask)
+{
+  int result = 0;
+  assert(pad_index >= 0 && pad_index < array_count(g_padpacket) && "[INPUT] Bad pad index.");
+
+  for (int bit = 0; bit < 16; ++bit) {
+    if ((buttonmask & (1 << bit)) && g_held_frames[pad_index][bit] > result) {
+      result = g_held_frames[pad_index][bit];
+    }
+  }
+
+  return result;
+}
+
+//
+// Called once per frame BEFORE VSync. The packet we snapshot here is the
+// one the game just finished reading, so after this call the counters mean
+// "frames held up to and including the frame that just ended", which the
+// next frame reads as "previous frames held".
+//
 void input_pad_frame(void)
 {
+  for (int pad_index = 0; pad_index < array_count(g_padpacket); ++pad_index) {
+    for (int bit = 0; bit < 16; ++bit) {
+      if (_input_pad_mask_button(pad_index, 1 << bit, 1)) {
+        if (g_held_frames[pad_index][bit] < UINT16_MAX) {
+          g_held_frames[pad_index][bit]++;
+        }
+      } else {
+        g_held_frames[pad_index][bit] = 0;
+      }
+    }
+  }
+
   g_last_padpacket[0] = g_padpacket[0];
   g_last_padpacket[1] = g_padpacket[1];
 }
