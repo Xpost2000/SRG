@@ -143,8 +143,8 @@ Rectangle32 font_get_glyph_rect(Font* font, uint8_t character)
   tile_column = tileid % font->columns;
   tile_row    = tileid / font->columns;
 
-  result.x = font->glyph_width/2 * tile_column;
-  result.y = font->glyph_height/2 * tile_row;
+  result.x = font->glyph_width * tile_column;
+  result.y = font->glyph_height * tile_row;
   result.w = font->glyph_width;
   result.h = font->glyph_height;
 
