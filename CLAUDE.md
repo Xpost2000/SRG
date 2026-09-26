@@ -32,7 +32,8 @@ to regenerate it.
 | --- | --- |
 | `source/` | Game source. `main.c` is currently the input test scene (a D-pad-driven box plus a fake pause menu). |
 | `source/input_pad.*` | Low-level pad driver wrapper: raw button masks, held/pressed/released edges. Game code should not call it directly. |
-| `source/input_action.*` | Action layer: named actions, UI/gameplay schemas, Type A/B gameplay presets, callbacks, menu auto-repeat. |
+| `source/input_action.*` | Action layer: named actions, one schema table per layout (UI, gameplay A, gameplay B), polling only, menu auto-repeat. |
+| `engine-docs/` | Design docs per engine system (`input.md`) and the style guide (`code-guide.md`). |
 | `source/render.*` | Minimal double-buffered ordering-table renderer: flat `TILE` rectangles and debug text. |
 | `source/memory_card.*`, `source/cdfs.*`, `source/memory_arena.*` | Memory card save/load, CD file reads, bump allocator. |
 | `system-docs/` | SDK manuals: PDFs plus converted Markdown in `md/`. |
@@ -91,16 +92,19 @@ See `system-docs/md/README.md` for more detail and the conversion's known limita
 
 ## Code conventions
 
-Follow what `source/main.c` already does:
+The full guide is **`engine-docs/code-guide.md`**. Read it before writing code. The reference
+implementation of the house style is `source/memory_card.c`; when unsure, match it. The three
+rules that matter most:
 
-- **C, not C++.** 2-space indent, K&R braces.
-- `snake_case` for locals and functions; SDK types are uppercase (`DISPENV`, `DRAWENV`,
-  `VECTOR`). Prefer descriptive names (`display_environment`, `frame_index`) over terse ones.
-- Align related declarations and call arguments into columns when it makes a group of
-  related lines easier to scan — `main.c` does this with the `SetDefDispEnv` /
-  `SetDefDrawEnv` calls.
-- **Comment style is the distinctive thing here, and it should be preserved.** The file
-  uses heavy `//` banner blocks that explain *why* something is done and reason about the
-  hardware, not just what the line does. ASCII diagrams are welcome — the VRAM map comment
-  in `main.c` is the model to imitate. When adding code that touches hardware, explain the
-  hardware.
+- **C, not C++.** 2-space indent, K&R braces, `snake_case` functions as `module_verb_object`,
+  `Pascal_Snake` types declared as `typedef struct X X;` then `struct X { ... };`, `g_` globals,
+  `#define NAME (value)` constants, `int` as bool. **No `float`.**
+- **Keep it simple.** Data tables over branching code, polling over callbacks, no abstraction
+  with a single implementation, delete no-op functions.
+- **Comment style is the distinctive thing here, and it should be preserved.** Heavy `//`
+  banner blocks that explain *why* something is done and reason about the hardware, not just
+  what the line does. ASCII diagrams are welcome — the VRAM map comment in `render.c` is the
+  model to imitate. When adding code that touches hardware, explain the hardware.
+
+Each engine system has a design doc in `engine-docs/` (currently `input.md`). Add one when you
+add a system.
