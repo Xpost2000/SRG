@@ -1,8 +1,57 @@
 #include "font.h"
 
-Font_TIM_Image tim_load_from_memory(uint8_t* data, uint8_t data_size)
+static Font_TIM_Image_PixelInformation tim_pixel_information_load_from_memory(uint8_t* data, uint8_t data_size)
+{
+  Font_TIM_Image_PixelInformation result;
+  uint8_t*       data_start = data;
+
+  result.length = *(uint32_t*) data;
+  data += sizeof(uint32_t);
+
+  result.x = *(uint16_t*) data;
+  data += sizeof(uint16_t);
+
+  result.y = *(uint16_t*) data;
+  data += sizeof(uint16_t);
+
+  result.width = *(uint16_t*) data;
+  data += sizeof(uint16_t);
+
+  result.height = *(uint16_t*) data;
+  data += sizeof(uint16_t);
+
+  result.pixels = (uint16_t*) data;
+  data += sizeof(uint16_t) * result.width * result.height;
+
+  assert(((data - data_start) > data_size) && "[FONT] cursor exceeded specified data_size.");
+  return result;
+}
+
+static Font_TIM_Image tim_load_from_memory(uint8_t* data, uint8_t data_size)
 {
   Font_TIM_Image result = {};
+  uint8_t*       data_start = data;
+
+  result.tag = *(uint8_t*)data;
+  data += sizeof(uint8_t);
+
+  result.version = *(uint8_t*)data;
+  data += sizeof(uint8_t);
+
+  //
+  // _pad0
+  // _pad1
+  //
+  data += sizeof(uint8_t);
+  data += sizeof(uint8_t);
+
+  result.flags = *(uint32_t*)data;
+  data += sizeof(uint32_t);
+
+  tim_pixel_information_load_from_memory(data, data_size - (data - data_start));
+  tim_pixel_information_load_from_memory(data, data_size - (data - data_start));
+
+  assert(((data - data_start) > data_size) && "[FONT] cursor exceeded specified data_size.");
   return result;
 }
 

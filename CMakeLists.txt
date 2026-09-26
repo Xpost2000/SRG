@@ -14,7 +14,8 @@ psn00bsdk_add_executable(game GPREL
 				  source/input_pad.c
 				  source/memory_arena.c
 				  source/memory_card.c
-				  source/font.c)
+				  source/font.c
+				  source/serializer.c)
 
 psn00bsdk_add_cd_image(
 	iso      # Target name
