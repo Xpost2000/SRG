@@ -468,7 +468,7 @@ int main(int argc, char** argv)
       } else {
 	srgfont.glyphmap[c] = (uint8_t) -1; // wrap around.
 	printf("glyphmap[%c] = n/a\n", c);
-     }
+      }
     }
 
     //
