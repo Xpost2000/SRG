@@ -120,7 +120,8 @@ uint16_t color32u8_to_5551(Color32u8 color)
   uint16_t result = (color.r >> 3) |
 		    (color.g >> 3) << 5 |
 		    (color.b >> 3) << 10;
-  if (color.a == 0) {
+
+  if (result != 0 && color.a != 255) {
     result |= 1 << 15;
   }
 
@@ -522,6 +523,12 @@ int main(int argc, char** argv)
       printf("tim.image_length: %d\n", srgfont.image_contents.image_length);
       printf("tim.image_width(16bpp): %d (actual): %d\n", srgfont.image_contents.image_width, srgfont.image_contents.image_width*4);
       printf("tim.image_height(16bpp): %d\n", srgfont.image_contents.image_height);
+      printf("--- color palette map \n");
+      for(i = 0; i < 16; ++i) {
+	uint16_t color5551 = color32u8_to_5551(g_palette[i]);
+	
+	printf("[%d]: (%d, %d, %d, %d) -> (%x) / %d\n", i, g_palette[i].r, g_palette[i].g, g_palette[i].b, g_palette[i].a, color5551, color5551);
+      }
     }
   }
 
