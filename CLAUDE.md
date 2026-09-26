@@ -30,7 +30,11 @@ to regenerate it.
 
 | Path | What |
 | --- | --- |
-| `source/` | Game source. Currently just `main.c`. |
+| `source/` | Game source. `main.c` is currently the input test scene (a D-pad-driven box plus a fake pause menu). |
+| `source/input_pad.*` | Low-level pad driver wrapper: raw button masks, held/pressed/released edges. Game code should not call it directly. |
+| `source/input_action.*` | Action layer: named actions, UI/gameplay schemas, Type A/B gameplay presets, callbacks, menu auto-repeat. |
+| `source/render.*` | Minimal double-buffered ordering-table renderer: flat `TILE` rectangles and debug text. |
+| `source/memory_card.*`, `source/cdfs.*`, `source/memory_arena.*` | Memory card save/load, CD file reads, bump allocator. |
 | `system-docs/` | SDK manuals: PDFs plus converted Markdown in `md/`. |
 | `toolchain-win64/` | Vendored GCC MIPS cross-compiler, PSn00bSDK, CMake, Ninja, PCSX-Redux. |
 | `CMakeLists.txt` | Declares the `game` executable and the `iso` CD image target. |
@@ -56,6 +60,11 @@ The hardware is small and strange, and most of it is load-bearing when writing c
   building primitives into an ordering table and handing it to the GPU.
 - **The disc** is ISO9660 with 8.3 filenames; the root directory holds at most 30 entries.
   Add files via `iso.xml`.
+- **Input** is digital buttons only; this game does not read analog sticks. Button bits in the
+  pad packet are active-low, the BIOS refreshes them during vblank so read pads *after*
+  `VSync(0)`, and memory-card I/O stops the pad driver so call `input_pad_start()` after any
+  card access. Game code goes through `input_action.h` (named actions, schemas), never raw
+  `PAD_*` masks, so a player's chosen preset always applies.
 
 ## Where to look things up
 
