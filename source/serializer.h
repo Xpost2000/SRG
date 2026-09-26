@@ -35,5 +35,6 @@ int8_t	 serializer_readi8(Serializer* serializer);
 // NOTE: no copy here
 //
 uint8_t* serializer_read_bytes(Serializer* serializer, uint32_t bytes);
+void     serializer_read_into_bytes(Serializer* serializer, uint8_t* dest, uint32_t bytes);
 
 #endif

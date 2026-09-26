@@ -45,3 +45,10 @@ uint8_t* serializer_read_bytes(Serializer* serializer, uint32_t bytes)
 
   return ptr;
 }
+
+void serializer_read_into_bytes(Serializer* serializer, uint8_t* dest, uint32_t bytes)
+{
+  uint8_t* start_of_ptr = serializer_read_bytes(serializer, bytes);
+
+  memcpy(dest, start_of_ptr, bytes);
+}
