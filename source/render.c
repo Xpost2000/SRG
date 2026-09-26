@@ -119,15 +119,6 @@ void render_initialize(void)
   SetDispMask(1);
 }
 
-void render_begin_frame(void)
-{
-  //
-  // render_end_frame already cleared this buffer's OT and reset the packet
-  // cursor when it swapped, so there is nothing to do. Kept so the frame
-  // shape reads begin/draw/end in main.
-  //
-}
-
 //
 // Carve `size` bytes out of the active packet buffer and link the new
 // primitive into the OT at depth z.
