@@ -8,29 +8,22 @@
 // The ACTION layer. Game code asks "is CONFIRM pressed?" or "which way is
 // the player moving?" and never mentions a physical button.
 //
-// Two ideas are kept deliberately separate:
+// A SCHEMA is a table with one 16-bit button mask per action. There is one
+// table for menus and one per gameplay layout ("Type A", "Type B" in PS1
+// option-screen speak). Each pad has exactly one schema live at a time:
 //
-//   CONTEXT  = which set of actions is live right now (menus vs gameplay).
-//              Decided by game state: opening the pause menu binds the UI
-//              schema, closing it binds the gameplay schema back.
+//   input_action_set_schema(P1_PAD, INPUT_SCHEMA_UI);          // menu opened
+//   input_action_set_schema(P1_PAD, INPUT_SCHEMA_GAMEPLAY_B);  // back to game
 //
-//   PRESET   = which button layout the gameplay context uses ("Type A",
-//              "Type B" in PS1 option-screen speak). Decided by the player
-//              and persisted to the memory card as a plain enum value.
+// A mask of 0 means "this action does not exist in this schema", which is
+// how the UI table makes GROW impossible while a menu is open. Masks may OR
+// several buttons so that either one works:
 //
-// A SCHEMA is just a table: one 16-bit button mask per action. The UI
-// context is one schema; each gameplay preset is another. A mask of 0
-// means "this action does not exist in this context", which is how the UI
-// schema makes GROW impossible while a menu is open.
+//   [INPUT_ACTION_UI_CANCEL] = PAD_TRIANGLE | PAD_CIRCLE,
 //
-//   schema.buttons[INPUT_ACTION_UI_CONFIRM] = PAD_CROSS | PAD_START;
-//                                             ^^^^^^^^^^^^^^^^^^^^^^
-//                                             OR = either button works
-//
-// Both polling (input_action_held/pressed/released) and callbacks
-// (input_action_bind + input_action_frame) are offered. Poll for
-// continuous things like movement; use callbacks for discrete things
-// like pause and confirm so they do not litter the game loop.
+// Everything is polled. There are no callbacks: game code checks
+// input_action_pressed() and friends wherever it needs to, in plain
+// sequential code, and a schema switch simply applies to the next poll.
 //
 
 // ============================================================================
@@ -38,8 +31,11 @@
 //  Add actions here, then bind them in the tables in input_action.c.
 // ============================================================================
 
-typedef enum Input_Action {
-  // UI context
+typedef enum Input_Action Input_Action;
+typedef enum Input_Schema Input_Schema;
+
+enum Input_Action {
+  // Menus
   INPUT_ACTION_UI_UP,
   INPUT_ACTION_UI_DOWN,
   INPUT_ACTION_UI_LEFT,
@@ -48,9 +44,9 @@ typedef enum Input_Action {
   INPUT_ACTION_UI_CANCEL,
   INPUT_ACTION_UI_MENU,
 
-  // Gameplay context. These are the test scene's verbs; a real game will
-  // replace them with its own (JUMP, ATTACK, ...). Every physical button
-  // has a job so the scene can demonstrate the whole pad.
+  // Gameplay. These are the test scene's verbs; a real game will replace
+  // them with its own (JUMP, ATTACK, ...). Every physical button has a job
+  // so the scene can demonstrate the whole pad.
   INPUT_ACTION_MOVE_UP,
   INPUT_ACTION_MOVE_DOWN,
   INPUT_ACTION_MOVE_LEFT,
@@ -66,84 +62,65 @@ typedef enum Input_Action {
   INPUT_ACTION_TOGGLE_OUTLINE, // tap: filled <-> hollow box
   INPUT_ACTION_RESET_POSITION, // tap: back to centre
   INPUT_ACTION_HELP,           // hold: show the live bindings on screen
-  INPUT_ACTION_PAUSE,          // tap: open the menu (UI context)
+  INPUT_ACTION_PAUSE,          // tap: open the menu
 
   INPUT_ACTION_COUNT
-} Input_Action;
+};
 
 //
-// This is the value that goes on the memory card. Only ever append to it;
-// renumbering would silently change what an old save means.
+// Which table is live. The gameplay layouts are contiguous so a menu can
+// cycle through them with + 1. This enum's value is what gets saved to the
+// memory card, so only ever APPEND to it; renumbering would silently change
+// what an old save means.
 //
-typedef enum Input_Gameplay_Preset {
-  INPUT_GAMEPLAY_PRESET_A = 0,
-  INPUT_GAMEPLAY_PRESET_B,
+enum Input_Schema {
+  INPUT_SCHEMA_UI,
+  INPUT_SCHEMA_GAMEPLAY_A,
+  INPUT_SCHEMA_GAMEPLAY_B,
 
-  INPUT_GAMEPLAY_PRESET_COUNT
-} Input_Gameplay_Preset;
+  INPUT_SCHEMA_COUNT
+};
+
+#define INPUT_SCHEMA_GAMEPLAY_FIRST (INPUT_SCHEMA_GAMEPLAY_A)
+#define INPUT_SCHEMA_GAMEPLAY_COUNT (INPUT_SCHEMA_COUNT - INPUT_SCHEMA_GAMEPLAY_FIRST)
 
 // ============================================================================
 //  ENGINE PART: generic, should not need touching per game.
 // ============================================================================
 
-typedef struct Input_Schema {
-  uint16_t buttons[INPUT_ACTION_COUNT]; // PadButton mask per action, 0 = unbound
-} Input_Schema;
-
-typedef enum Input_Event {
-  INPUT_EVENT_PRESSED,
-  INPUT_EVENT_RELEASED,
-} Input_Event;
-
-typedef void (*Input_Action_Callback)(int pad_index, Input_Action action, Input_Event event, void* user_data);
-
-const Input_Schema* input_schema_ui(void);
-const Input_Schema* input_schema_gameplay(Input_Gameplay_Preset preset);
+void         input_action_set_schema(int pad_index, Input_Schema schema);
+Input_Schema input_action_get_schema(int pad_index);
 
 //
-// Human-readable name of an action's binding in a schema, e.g. "CROSS" or
-// "TRIANGLE+CIRCLE" for an OR'd mask, "-" if unbound. For options screens
-// and debug overlays. Writes at most capacity bytes including the NUL.
-//
-void input_schema_describe(const Input_Schema* schema, Input_Action action, char* out, int capacity);
-
-//
-// One active context per pad: which schema is live and who gets told about
-// edges. on_action may be NULL for polling-only use. Switching between
-// menus and gameplay is one call.
-//
-// ponytail: no context stack. If pause-over-gameplay ever needs to restore
-// the previous context automatically, add push/pop on top of this.
-//
-void                input_action_bind(int pad_index, const Input_Schema* schema, Input_Action_Callback on_action, void* user_data);
-const Input_Schema* input_action_current_schema(int pad_index);
-
-//
-// Call once per frame, AFTER VSync(0) (the pad buffers refresh in the
-// vblank IRQ). Fires PRESSED/RELEASED callbacks for every bound action and
-// advances the held-frame counters used by input_action_repeat.
-//
-void input_action_frame(void);
-
-//
-// Polling. All read through the pad's current schema; an unbound action is
-// never active.
+// All of these read through the pad's current schema; an unbound action is
+// never active. Call them after VSync(0), which is when the BIOS has
+// finished refreshing the pad buffers for the frame.
 //
 int input_action_held(int pad_index, Input_Action action);
 int input_action_pressed(int pad_index, Input_Action action);
 int input_action_released(int pad_index, Input_Action action);
 
 //
-// Menu auto-repeat: true on the first press, then again every rate_frames
-// once the action has been held for delay_frames. At 60 Hz, (20, 6) feels
-// like a typical console menu.
+// Menu auto-repeat: true on the first frame of a press, then again every
+// rate_frames once the action has been held for delay_frames. At 60 Hz,
+// (20, 6) feels like a typical console menu.
 //
 int input_action_repeat(int pad_index, Input_Action action, int delay_frames, int rate_frames);
 
 //
 // -1, 0 or +1 from two opposing actions (both held = 0). Digital only, by
-// design: this game does not read analog sticks. This is how we get angle movement
+// design: this game does not read analog sticks. Multiply by a speed to get
+// pixels per frame.
 //
 int input_action_axis(int pad_index, Input_Action negative, Input_Action positive);
+
+//
+// Human-readable binding for options screens and debug overlays, e.g.
+// "CROSS", "TRIANGLE+CIRCLE" for an OR'd mask, "-" if unbound.
+//
+// NOTE: returned as a static buffer, same as get_game_save_name(). Copy it
+// if you need to keep it past the next call.
+//
+char* input_action_button_name(Input_Schema schema, Input_Action action);
 
 #endif
