@@ -14,6 +14,8 @@ psn00bsdk_add_executable(game GPREL
 				  source/input_pad.c
 				  source/memory_arena.c
 				  source/memory_card.c
+				  source/input_action.c
+				  source/render.c
 				  source/font.c
 				  source/serializer.c)
 
