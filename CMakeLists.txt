@@ -16,11 +16,13 @@ psn00bsdk_add_executable(game GPREL
 				  source/memory_card.c
 				  source/input_action.c
 				  source/render.c
+				  source/font.c
+				  source/serializer.c
           source/ps1_mem_limit.c)
 
 psn00bsdk_add_cd_image(
 	iso      # Target name
 	game     # Output file name (= game.bin + game.cue)
 	iso.xml  # Path to config file
-	DEPENDS game system.cnf
+	DEPENDS game system.cnf res/
 )

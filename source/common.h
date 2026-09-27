@@ -24,6 +24,8 @@ inline static char* __shorten_path_length(char* original, int depth) {
     return ptr;
 }
 
+#define UNUSED(x) ((void)(x))
+
 #ifdef NDEBUG
 #define RELEASE
 #endif

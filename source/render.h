@@ -27,4 +27,6 @@ void render_tile(int x, int y, int w, int h, uint8_t r, uint8_t g, uint8_t b, in
 void render_text(int x, int y, int z, const char* text);
 void render_end_frame(void);
 
+void* _new_primitive(int z, size_t size);
+
 #endif

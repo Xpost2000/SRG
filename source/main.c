@@ -21,6 +21,13 @@
 #include "input_pad.h"
 #include "input_action.h"
 #include "render.h"
+#include "font.h"
+
+//
+// psxgpu just to directly create primitives for font testing
+//
+#include <psxgpu.h>
+
 
 // ----------------------------------------------------------------------------
 //  Save data
@@ -134,6 +141,13 @@ static const char* const g_menu_labels[MENU_ITEM_COUNT] = {
 };
 
 static uint8_t g_iconfile[CD_SECTOR_SIZE]; // memory card icon TIM, one CD sector
+static Font    g_font1;
+static Font    g_font2;
+
+//
+// Just for font testing purposes
+//
+static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
 
 // ----------------------------------------------------------------------------
 //  Memory card <-> settings
@@ -449,6 +463,70 @@ static void draw_menu(Test_Scene* scene)
   render_text(64, y + 18, 0, "CANCEL OR MENU: BACK TO GAME");
 }
 
+//
+// testing code for custom font
+//
+static void _custom_drawtext(Font* f, Vector2 xy, char* txt)
+{
+  int i;
+  Vector2 cursor = xy;
+
+  int string_length = strlen(txt);
+
+  static int showprint = 1;
+
+  int tpage_cell_x;
+  int tpage_cell_y;
+
+  for (i = 0; i < string_length; ++i) {
+    SPRT* glyph;
+    DR_TPAGE* tpage_primitive;
+    uint32_t tpage;
+    Rectangle32 uvoff;
+
+    if ((txt[i] != ' ') || (txt[i] != '\n')) {
+      glyph = (SPRT*) _new_primitive(0, sizeof(SPRT));
+      tpage_primitive = (DR_TPAGE*) _new_primitive(0, sizeof(DR_TPAGE));
+
+      uvoff = font_get_glyph_rect_vram(f, txt[i]);
+
+      setSprt(glyph);
+      setXY0(glyph, cursor.x, cursor.y);
+      setUV0(glyph, 16, 0);
+      setWH(glyph, f->glyph_width, f->glyph_height);
+      setRGB0(glyph, 127, 127, 127);
+
+      //
+      // need to figure out how to generalize this in the API since
+      // UVs are tpage relative and I kind of just got by before LOL.
+      //
+      tpage_cell_x = f->tim.image.x / 64;
+      tpage_cell_y = f->tim.image.y / 256;
+      /* setUV0(glyph, (uvoff.x - (tpage_cell_x * 256)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256); */
+      setUV0(glyph, (uvoff.x - (tpage_cell_x * 64)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256);
+
+      if (showprint) {
+	_debugprintf("glyph(%c(%d)): %d, %d, %d, %d sample at [%d, %d] (tpage_cell_x: %d, tpage_real_x: %d, tpage_cell_y: %d, tpage_real_y: %d)",
+		     txt[i], txt[i], uvoff.x, uvoff.y, uvoff.w, uvoff.h, (uvoff.x) % 64, (uvoff.y) % 256,
+		     (tpage_cell_x), (tpage_cell_x * 64),
+		     (tpage_cell_y), (tpage_cell_y * 256));
+      }
+
+      setClut(glyph, f->tim.clut.x, f->tim.clut.y);
+
+      tpage = getTPage(0, 0, f->tim.image.x, f->tim.image.y),
+      setDrawTPage(tpage_primitive, 0, 0, tpage);
+      cursor.x += f->glyph_width;
+    } else if (txt[i] == '\n') {
+      cursor.y += f->glyph_height;
+      cursor.x = xy.x;
+    } else {
+      cursor.x += f->glyph_width;
+    }
+  }
+  showprint = 0;
+}
+
 static void scene_draw(Test_Scene* scene)
 {
   char line[64];
@@ -473,6 +551,9 @@ static void scene_draw(Test_Scene* scene)
   } else {
     render_text(8, 220, 0, "HOLD HELP FOR BINDINGS   PAUSE FOR MENU");
   }
+
+  _custom_drawtext(&g_font1, (Vector2) {100, 100}, "HI SRG TEAM");
+  _custom_drawtext(&g_font2, (Vector2) {100, 116}, "Another Font, Oh man!");
 }
 
 // ----------------------------------------------------------------------------
@@ -490,6 +571,14 @@ int main(int argc, const char **argv)
   input_pad_start();
 
   //
+  // Debug to show memory counting
+  //
+  {
+    uintptr_t remaining_memory = system_get_remaining_allocatable_memory();
+    _debugprintf("[MEMORY]: %d bytes, %d kb, %d mb left\n", remaining_memory, remaining_memory / 1024, remaining_memory / (1024*1024));
+  }
+  
+  //
   // The memory card header needs a 16x16 4bpp icon; keep loading it off the
   // disc as before.
   //
@@ -501,10 +590,75 @@ int main(int argc, const char **argv)
       printf("[MAIN] icon file not found on disc\n");
     }
   }
-  
+
+  //
+  // Test code for loading font file
+  //
   {
-    uintptr_t remaining_memory = system_get_remaining_allocatable_memory();
-    _debugprintf("[MEMORY]: %d bytes, %d kb, %d mb left\n", remaining_memory, remaining_memory / 1024, remaining_memory / (1024*1024));
+    CD_File font = cd_file_open("\\RES\\FONT1.SRGFNT");
+    int nsectors = ((sizeof(g_fontfile)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
+    if (font.valid) {
+      cd_file_read_sync_uncached(&font, g_fontfile, nsectors * CD_SECTOR_SIZE);
+      g_font1 = font_load_from_memory(g_fontfile, sizeof(g_fontfile));
+
+      //
+      // Upload to vram synchronusly picking some random point
+      //
+      {
+	// temporary for primitive
+	TIM_IMAGE tim = font_get_tim_info(&g_font1);
+	LoadImage(&(RECT) {
+	  .x = 960,
+	  .y = 256,
+	  .w = g_font1.tim.image.width,
+	  .h = g_font1.tim.image.height,
+	},
+	tim.paddr);
+	LoadImage(&(RECT) {
+          .x = 0, 480,	
+	  .w = g_font1.tim.clut.width,
+	  .h = g_font1.tim.clut.height,
+	}, tim.caddr);
+
+	font_set_vram_information(&g_font1, (Vector2){960, 256}, (Vector2){0, 480});
+	DrawSync(1);
+      }
+    } else {
+      printf("[MAIN] font file not found on disc\n");
+    }
+  }
+  {
+    CD_File font = cd_file_open("\\RES\\FONT2.SRGFNT");
+    int nsectors = ((sizeof(g_fontfile)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
+    if (font.valid) {
+      cd_file_read_sync_uncached(&font, g_fontfile, nsectors * CD_SECTOR_SIZE);
+      g_font2 = font_load_from_memory(g_fontfile, sizeof(g_fontfile));
+
+      //
+      // Upload to vram synchronusly picking some random point
+      //
+      {
+	// temporary for primitive
+	TIM_IMAGE tim = font_get_tim_info(&g_font2);
+	LoadImage(&(RECT) {
+	  .x = 960,
+	  .y = 256 + g_font1.tim.image.height,
+	  .w = g_font2.tim.image.width,
+	  .h = g_font2.tim.image.height,
+	},
+	tim.paddr);
+	LoadImage(&(RECT) {
+          .x = 0, 481,	
+	  .w = g_font2.tim.clut.width,
+	  .h = g_font2.tim.clut.height,
+	}, tim.caddr);
+
+	font_set_vram_information(&g_font2, (Vector2){960, 256 + g_font1.tim.image.height}, (Vector2){0, 481});
+	DrawSync(1);
+      }
+    } else {
+      printf("[MAIN] font file not found on disc\n");
+    }
   }
 
   scene_reset_box(&scene);
