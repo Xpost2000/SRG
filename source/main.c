@@ -571,6 +571,14 @@ int main(int argc, const char **argv)
   input_pad_start();
 
   //
+  // Debug to show memory counting
+  //
+  {
+    uintptr_t remaining_memory = system_get_remaining_allocatable_memory();
+    _debugprintf("[MEMORY]: %d bytes, %d kb, %d mb left\n", remaining_memory, remaining_memory / 1024, remaining_memory / (1024*1024));
+  }
+  
+  //
   // The memory card header needs a 16x16 4bpp icon; keep loading it off the
   // disc as before.
   //
