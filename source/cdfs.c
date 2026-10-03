@@ -35,6 +35,15 @@ static void _cd_file_issue_read(CD_File* file, unsigned char* buffer, size_t siz
 {
   assert(file->valid && "_cd_file_issue_read given an invalid file.");
   size_t sector_count = size / CD_SECTOR_SIZE;
+
+  //
+  // The read-complete callback is one global hook. The music streamer
+  // (audio.c) installs its own before each of its reads; if it were left in
+  // place here it would fire for OUR read and feed our bytes to the stream.
+  // The CdReadSync(0, 0) in the caller has already waited for any stream
+  // read to land, so clearing it is safe.
+  //
+  CdReadCallback(0);
   CdControl(CdlSetloc, &file->file_index.pos, 0);
   CdRead(sector_count, buffer, CdlModeSpeed);
 }
