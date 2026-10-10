@@ -182,7 +182,7 @@ void spu_upload(uint32_t spu_addr, const void* data, size_t size)
   assert(spu_addr >= SPU_STREAM_BUFFER_ADDR && (spu_addr + size) <= SPU_RAM_SIZE && "[SPU] upload outside sound RAM.");
   assert((((uintptr_t) data) & 3) == 0 && "[SPU] upload source must be word aligned for DMA.");
 
-  size = (size + 63) & ~((size_t) 63);
+  size = align_up(size, (size_t) 64);
 
   int was_enabled = EnterCriticalSection();
   SpuIsTransferCompleted(SPU_TRANSFER_WAIT); // a stream chunk may still be in flight

@@ -46,7 +46,7 @@
 //   0x05010 +-----------------------------+
 //           | (gap, 64-byte alignment)    |
 //   0x05100 +-----------------------------+
-//           | sample bank                 |  sound effects, bump-allocated by
+//           | sample bank                 |  sound effects, a Memory_Bump in
 //           |   ...grows upward...        |  audio.c, reset per scene
 //   0x7FFF0 +-----------------------------+
 //           | reverb work area            |  SpuInit() parks it here, unused

@@ -48,6 +48,9 @@ inline static char* __shorten_path_length(char* original, int depth) {
 #define min(x, y) ((x > y) ? y : x)
 #define clamp(x, y, z) min(max(x, z), y)
 
+// Round x up to a multiple of a. a must be a power of two.
+#define align_up(x, a) (((x) + (a) - 1) & ~((a) - 1))
+
 #define memory_zero(c, s) memset(c, 0, s)
 #define memory_zero_fixed(c) memory_zero(c, sizeof(c))
 
