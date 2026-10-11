@@ -60,7 +60,7 @@ of a buffer the size of two chunks:
 ```
    voice plays half A ---> hits loop flag at the end of A ---> jumps to half B
                                                                      |
-          SPU interrupt fires because the first byte of B == SPU_IRQ_ADDR
+          SPU interrupt fires one block into B (SPU_IRQ_ADDR = B + 16 bytes)
                                                                      |
           handler: pull the next chunk from the ring in main RAM, DMA it into A,
                    point the loop address and SPU_IRQ_ADDR at A

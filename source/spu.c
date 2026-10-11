@@ -20,6 +20,12 @@
 #define SPU_ADSR1_INSTANT_FULL (0x00FF)
 #define SPU_ADSR2_INSTANT_FULL (0x0000)
 
+//
+// One ADPCM block: 16 bytes holding 28 samples. The stream IRQ is armed this
+// far into a half rather than on its first byte; see the handler for why.
+//
+#define SPU_ADPCM_BLOCK_SIZE (16)
+
 // ----------------------------------------------------------------------------
 //  Stream state
 // ----------------------------------------------------------------------------
@@ -69,14 +75,28 @@ static void _voice_park(int voice)
 //
 //   voice plays half A ---> hits loop flag ---> jumps to half B
 //                                                   |
-//                 SPU IRQ fires because half B first byte == SPU_IRQ_ADDR
+//                 left voice finishes B's first block; SPU_IRQ_ADDR sits
+//                 right after it, so the SPU IRQ fires
 //                                                   |
 //                 handler: pull next chunk from ring, DMA it into half A,
 //                          point LOOP_ADDR and SPU_IRQ_ADDR at half A
 //
 // The voice never knows it is streaming; it thinks it is looping a sample
-// that happens to change under its feet. One IRQ every chunk (about 325 ms at
-// 22.05 kHz), which is nothing.
+// that happens to change under its feet. One IRQ every chunk (about 650 ms at
+// 11.025 kHz), which is nothing.
+//
+// Why the IRQ address is one block into the half, not on its first byte:
+// with a stereo stream two voices take the jump, and the SPU services voices
+// one after another. Armed on the first byte, the IRQ fires as the LEFT voice
+// jumps, and the handler can rewrite LOOP_ADDR before the RIGHT voice has
+// read it for its own jump. The right voice then jumps to the wrong half,
+// left and right drift a chunk apart, the right voice's block reads start
+// tripping extra IRQs (each one eats a chunk), and eventually it runs off
+// the end of the buffer into the sample bank and is silenced by an effect's
+// end flag. One block in, both voices have long since jumped, and each has
+// ~255 blocks of runway before it reads LOOP_ADDR again. Found in PCSX-Redux,
+// whose SPU thread renders voices in batches and makes this race easy to hit;
+// on hardware the window is a few microseconds, but it is still there.
 //
 // Gotcha from psx-spx: every voice reads SPU RAM all the time, even silent
 // ones, and a DMA write that crosses SPU_IRQ_ADDR triggers the IRQ too. That
@@ -123,7 +143,7 @@ static void _stream_irq_handler(void)
 
   uint32_t address = SPU_STREAM_BUFFER_ADDR + (g_stream.half ? g_stream.chunk_size : 0);
 
-  SPU_IRQ_ADDR = getSPUAddr(address);
+  SPU_IRQ_ADDR = getSPUAddr(address + SPU_ADPCM_BLOCK_SIZE);
   for (int ch = 0; ch < g_stream.channels; ++ch) {
     SPU_CH_LOOP_ADDR(SPU_VOICE_STREAM_FIRST + ch) = getSPUAddr(address + ch * SPU_STREAM_INTERLEAVE);
   }

@@ -38,8 +38,8 @@ in `system-docs/md/` and psx-spx. Details and sources are in `audio-research.md`
   12-bit fixed point: `0x1000` plays at 44.1 kHz, `0x800` at 22.05 kHz. The loop address
   register can be rewritten while the voice plays; that is the trick streaming is built on.
 - **The SPU can raise an interrupt when any voice reads a chosen address.** Set `SPU_IRQ_ADDR`
-  to the start of buffer half B; when the voice loops from A into B the interrupt fires and
-  the handler refills A. Idle voices must sit on the silent block or they would fire it too.
+  one ADPCM block (16 bytes) into buffer half B; just after the voices loop from A into B the interrupt fires and
+  the handler refills A. Not the first byte of B: with stereo, the interrupt would fire as the left voice jumps and the handler could move the right voice's loop address before it jumps (see `spu.c`). Idle voices must sit on the silent block or they would fire it too.
 - **DMA moves data in 64-byte units** and reads main RAM directly, so sample buffers are padded
   to 64 bytes, word aligned, and never on the stack.
 - **One CD pickup head.** The drive reads 150 sectors a second at 2x; a 22.05 kHz stereo song
@@ -70,6 +70,7 @@ feeder from `audio_update()`. It never touches a register.
 | Sample uploads run inside a critical section | The stream interrupt uses the same DMA channel. Masking interrupts defers the SPU IRQ rather than losing it, and an upload is milliseconds against a 325 ms chunk. |
 | Assets are converted at build time by a vendored `psxavenc` | Nothing to install, nothing generated is committed, and a changed `.wav` rebuilds only its own `.VAG`. |
 | 11.025 kHz is the default rate | A quarter the size of 44.1 kHz: half the sound RAM per effect and half the disc and CD bandwidth per song compared with 22.05 kHz. It does not change main RAM (the ring is a fixed 40 KB), and treble above ~5.5 kHz is lost, so use 22050 on any asset that sounds muffled. Per-asset override in `CMakeLists.txt`. |
+| Music is mono unless the track needs stereo | One channel is half the bytes of stereo, so a song takes half the disc space, the CD feeder reads half as often, and the 40 KB ring holds twice as long (about 6.5 s at 11 kHz instead of 3.2 s), which means bigger blocking loads fit under the music. It is also one voice to start, stop and fade instead of two kept in step. The cost is stereo width and panning inside the track; through a PS1 and a TV most game music loses little, and `audio_music_set_volume()` can still pan the whole song. Use `2` channels on a track whose left and right really differ. |
 
 ## Using it
 
@@ -80,7 +81,7 @@ Drop a `.wav` or `.mp3` into `res/audio/` and add one line to `CMakeLists.txt`:
 ```cmake
 srg_audio_sfx  (JUMP  res/audio/jump.wav   11025)      # mono one-shot
 srg_audio_sfx  (HUM   res/audio/hum.wav    11025 -L)   # extra flags pass through: -L forces a loop
-srg_audio_music(THEME res/audio/theme.mp3  11025 2)    # streamed, 1 or 2 channels
+srg_audio_music(THEME res/audio/theme.mp3  11025 1)    # streamed; channels 1 (mono, the default) or 2
 ```
 
 A `.wav` with a `smpl` loop chunk (most DAWs can write one) loops at that point automatically.
