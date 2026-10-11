@@ -72,7 +72,7 @@ function(srg_audio_music name source rate channels)
 endfunction()
 
 srg_audio_sfx  (BLIP res/audio/blip.wav 22050)
-srg_audio_music(LOOP res/audio/loop.mp3 22050 2)
+srg_audio_music(LOOP res/audio/loop.mp3 22050 1)
 
 psn00bsdk_add_cd_image(
 	iso      # Target name

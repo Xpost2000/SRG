@@ -123,15 +123,21 @@ audio_sfx_play_ex(g_sfx_jump, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX, AUDIO_PITCH_NO
 
 int voice = audio_sfx_play(g_sfx_hum);   // a looping sample keeps going...
 audio_sfx_stop(voice);                   // ...until you stop its voice
+
+audio_sfx_fade_in(audio_sfx_play(g_sfx_hum), 30);  // swell up over half a second
+audio_sfx_fade_out(voice, 60);                      // one second down, then the voice stops
 ```
 
-Playing an invalid handle is a silent no-op, so a missing asset never crashes a scene.
+Playing an invalid handle is a silent no-op, so a missing asset never crashes a scene. Fade an
+effect in straight after playing it, and fade a voice soon after playing it: the pool is
+round-robin, so 22 plays later that voice belongs to another sound.
 
 ### 5. Music
 
 ```c
 audio_music_play("\\AUDIO\\THEME.VAG", 1);  // 1 = loop forever, 0 = play once and stop
 audio_music_set_volume(AUDIO_VOLUME_MAX / 2, AUDIO_VOLUME_MAX / 2);
+audio_music_fade_in(60);                     // right after play: silence up to the set volume
 audio_music_fade_out(60);                    // one second, then stops itself
 audio_music_stop();                          // immediate
 if (audio_music_is_playing()) { ... }
@@ -171,9 +177,9 @@ runway, `audio_music_stop()` first and start the next song when the screen comes
 
 ## The test scene
 
-`source/main.c` wires it up. Every colour change plays the blip (COLOR- an octave down),
-dropping a marker plays it panned to where the box is, and the pause menu has MUSIC (start or
-fade out the looping test song) and CD READ TEST (twenty blocking font reads while the song
+`source/main.c` wires it up. Every colour change plays the blip (COLOR+ fades it out, COLOR-
+fades it in an octave down), dropping a marker plays it panned to where the box is, and the
+pause menu has MUSIC (fade in or fade out the looping test song) and CD READ TEST (twenty blocking font reads while the song
 plays). The line under the status shows ring fill and the underrun count; the test should leave
 it at zero.
 

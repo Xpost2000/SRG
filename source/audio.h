@@ -29,6 +29,9 @@
 //   roughly 1 MB at 2x. Bigger than that: audio_music_stop() first.
 // - audio_sfx_unload_all() throws away every loaded effect. Scenes load
 //   their own set on entry; nothing persists across scenes.
+// - Any effect voice or the music can fade in or out over N frames, stepped
+//   by audio_update(). Fade in straight after playing; a fade out that ends
+//   stops the voice.
 //
 
 #include "common.h"
@@ -50,9 +53,12 @@ void      audio_sfx_unload_all(void);
 int       audio_sfx_play(Audio_Sfx sfx);
 int       audio_sfx_play_ex(Audio_Sfx sfx, int16_t vol_l, int16_t vol_r, int pitch);
 void      audio_sfx_stop(int voice);
+void      audio_sfx_fade_in(int voice, int frames);
+void      audio_sfx_fade_out(int voice, int frames);
 
 int  audio_music_play(const char* cd_path, int loop);
 void audio_music_stop(void);
+void audio_music_fade_in(int frames);
 void audio_music_fade_out(int frames);
 void audio_music_set_volume(int16_t vol_l, int16_t vol_r);
 int  audio_music_is_playing(void);

@@ -54,9 +54,10 @@ struct Audio_Vag_Info {
 //  State
 // ----------------------------------------------------------------------------
 
-typedef struct Audio_Sample Audio_Sample;
-typedef struct Audio_Fade   Audio_Fade;
-typedef struct Audio_Music  Audio_Music;
+typedef struct Audio_Sample    Audio_Sample;
+typedef struct Audio_Fade      Audio_Fade;
+typedef struct Audio_Sfx_Voice Audio_Sfx_Voice;
+typedef struct Audio_Music     Audio_Music;
 
 struct Audio_Sample {
   uint32_t spu_addr;
@@ -64,12 +65,24 @@ struct Audio_Sample {
 };
 
 //
-// A linear fade to silence, counted in frames. Not tied to music: anything
+// A linear fade, counted in frames: up from silence to the volume the caller
+// set (in), or down from it to silence (out). Not tied to music: anything
 // with a volume can hold one, step it once a frame and scale its volume.
 //
 struct Audio_Fade {
   int total; // frames; 0 = no fade running
   int left;
+  int in;    // 1 = silence -> volume, 0 = volume -> silence
+};
+
+//
+// One per pool voice, so any effect that is playing can be faded. The
+// volume is what audio_sfx_play_ex() was given; the fade scales it.
+//
+struct Audio_Sfx_Voice {
+  int16_t    vol_l;
+  int16_t    vol_r;
+  Audio_Fade fade;
 };
 
 enum Audio_Music_State {
@@ -90,11 +103,12 @@ struct Audio_Music {
   Audio_Fade   fade;
 };
 
-static Audio_Sample g_sfx[AUDIO_SFX_MAX];
-static int          g_sfx_count;
-static Memory_Bump  g_sfx_bank; // the sample bank region of sound RAM, see spu.h
-static int          g_sfx_next_voice;
-static Audio_Music  g_music;
+static Audio_Sample    g_sfx[AUDIO_SFX_MAX];
+static int             g_sfx_count;
+static Memory_Bump     g_sfx_bank; // the sample bank region of sound RAM, see spu.h
+static int             g_sfx_next_voice;
+static Audio_Sfx_Voice g_sfx_voices[AUDIO_SFX_VOICE_COUNT]; // index = voice - SPU_VOICE_SFX_FIRST
+static Audio_Music     g_music;
 
 //
 // Every file goes through here on its way to the SPU: a whole sound effect,
@@ -112,6 +126,7 @@ void audio_initialize(void)
   g_sfx_count      = 0;
   g_sfx_next_voice = 0;
   memory_bump_init(&g_sfx_bank, SPU_SAMPLE_BANK_ADDR, SPU_SAMPLE_BANK_END);
+  memory_zero(&g_sfx_voices, sizeof(g_sfx_voices));
 
   memory_zero(&g_music, sizeof(g_music));
   g_music.vol_l = AUDIO_VOLUME_MAX;
@@ -150,10 +165,11 @@ static int _vag_read_header(const void* bytes, uint32_t magic, Audio_Vag_Info* i
 //  Fades
 // ----------------------------------------------------------------------------
 
-static void _fade_start(Audio_Fade* fade, int frames)
+static void _fade_start(Audio_Fade* fade, int frames, int in)
 {
   fade->total = frames;
   fade->left  = frames;
+  fade->in    = in;
 }
 
 static int _fade_is_running(Audio_Fade* fade)
@@ -161,17 +177,29 @@ static int _fade_is_running(Audio_Fade* fade)
   return fade->total != 0;
 }
 
-// Advances one frame. Returns 1 once the fade has reached silence.
+//
+// Advances one frame. Returns 1 once the fade has reached its end, and
+// leaves fade->in set so the caller knows which end: full volume (keep
+// playing) or silence (stop the voice).
+//
 static int _fade_step(Audio_Fade* fade)
 {
   fade->left--;
-  return fade->left <= 0;
+  if (fade->left > 0) {
+    return 0;
+  }
+  fade->total = 0;
+  return 1;
 }
 
-// volume * left / total: full volume on the first frame, silence on the last.
+//
+// The volume to send this frame. Out: volume * left / total, full on the
+// first frame and silent on the last. In: the same ramp run backwards.
+//
 static int16_t _fade_apply(Audio_Fade* fade, int16_t volume)
 {
-  return (int16_t) ((int) volume * fade->left / fade->total);
+  int level = fade->in ? fade->total - fade->left : fade->left;
+  return (int16_t) ((int) volume * level / fade->total);
 }
 
 // ----------------------------------------------------------------------------
@@ -235,7 +263,7 @@ Audio_Sfx audio_sfx_load(const char* cd_path)
 void audio_sfx_unload_all(void)
 {
   for (int voice = SPU_VOICE_SFX_FIRST; voice < SPU_VOICE_COUNT; ++voice) {
-    spu_voice_stop(voice);
+    audio_sfx_stop(voice);
   }
   g_sfx_count = 0;
   memory_bump_reset(&g_sfx_bank);
@@ -273,14 +301,57 @@ int audio_sfx_play_ex(Audio_Sfx sfx, int16_t vol_l, int16_t vol_r, int pitch)
   }
 
   spu_voice_play(voice, sample->spu_addr, (uint16_t) freq, vol_l, vol_r);
+
+  // a stolen voice must not inherit the previous sound's fade
+  Audio_Sfx_Voice* state = &g_sfx_voices[voice - SPU_VOICE_SFX_FIRST];
+  state->vol_l      = vol_l;
+  state->vol_r      = vol_r;
+  state->fade.total = 0;
   return voice;
+}
+
+static int _sfx_voice_is_valid(int voice)
+{
+  return voice >= SPU_VOICE_SFX_FIRST && voice < SPU_VOICE_COUNT;
 }
 
 void audio_sfx_stop(int voice)
 {
-  if (voice >= SPU_VOICE_SFX_FIRST && voice < SPU_VOICE_COUNT) {
+  if (_sfx_voice_is_valid(voice)) {
     spu_voice_stop(voice);
+    g_sfx_voices[voice - SPU_VOICE_SFX_FIRST].fade.total = 0;
   }
+}
+
+//
+// Fading in drops the voice to silence right away, so call it straight after
+// audio_sfx_play_ex(): the SPU has had a few microseconds at full volume,
+// far too short to hear. The fade then climbs back to the play volume.
+//
+// ponytail: a voice is just a pool slot, so 22 plays later it belongs to a
+// different sound. Fade an effect's voice soon after playing it, or keep
+// the voice number only as long as you know the sound is still yours.
+//
+void audio_sfx_fade_in(int voice, int frames)
+{
+  if (!_sfx_voice_is_valid(voice) || frames <= 0) {
+    return;
+  }
+  Audio_Sfx_Voice* state = &g_sfx_voices[voice - SPU_VOICE_SFX_FIRST];
+  _fade_start(&state->fade, frames, 1);
+  spu_voice_set_volume(voice, 0, 0);
+}
+
+void audio_sfx_fade_out(int voice, int frames)
+{
+  if (!_sfx_voice_is_valid(voice)) {
+    return;
+  }
+  if (frames <= 0) {
+    audio_sfx_stop(voice);
+    return;
+  }
+  _fade_start(&g_sfx_voices[voice - SPU_VOICE_SFX_FIRST].fade, frames, 0);
 }
 
 // ----------------------------------------------------------------------------
@@ -448,7 +519,21 @@ void audio_music_fade_out(int frames)
     audio_music_stop();
     return;
   }
-  _fade_start(&g_music.fade, frames);
+  _fade_start(&g_music.fade, frames, 0);
+}
+
+//
+// Same deal as audio_sfx_fade_in(): call it right after audio_music_play().
+// The song starts silent and climbs to the volume set with
+// audio_music_set_volume().
+//
+void audio_music_fade_in(int frames)
+{
+  if (g_music.state == AUDIO_MUSIC_STOPPED || frames <= 0) {
+    return;
+  }
+  _fade_start(&g_music.fade, frames, 1);
+  spu_stream_set_volume(0, 0);
 }
 
 void audio_music_set_volume(int16_t vol_l, int16_t vol_r)
@@ -483,9 +568,33 @@ int audio_music_underruns(void)
 // ----------------------------------------------------------------------------
 
 //
+// Steps one pool voice's fade and pushes the scaled volume to it. A fade in
+// that finishes lands on the play volume; a fade out that finishes keys the
+// voice off.
+//
+static void _sfx_step_fade(int voice)
+{
+  Audio_Sfx_Voice* state = &g_sfx_voices[voice - SPU_VOICE_SFX_FIRST];
+
+  if (!_fade_is_running(&state->fade)) {
+    return;
+  }
+  if (_fade_step(&state->fade)) {
+    if (state->fade.in) {
+      spu_voice_set_volume(voice, state->vol_l, state->vol_r);
+    } else {
+      spu_voice_stop(voice);
+    }
+    return;
+  }
+  spu_voice_set_volume(voice, _fade_apply(&state->fade, state->vol_l),
+                              _fade_apply(&state->fade, state->vol_r));
+}
+
+//
 // Steps a running fade one frame and pushes the scaled volume to the stream.
 // The user's chosen volume (vol_l/vol_r) is left alone so the next song
-// starts at full volume again. Returns 1 when the fade has hit silence.
+// starts at full volume again. Returns 1 when a fade out has hit silence.
 //
 static int _music_step_fade(void)
 {
@@ -493,6 +602,10 @@ static int _music_step_fade(void)
     return 0;
   }
   if (_fade_step(&g_music.fade)) {
+    if (g_music.fade.in) {
+      spu_stream_set_volume(g_music.vol_l, g_music.vol_r);
+      return 0;
+    }
     return 1;
   }
   spu_stream_set_volume(_fade_apply(&g_music.fade, g_music.vol_l),
@@ -547,6 +660,10 @@ static void _music_step_feeder(void)
 //
 void audio_update(void)
 {
+  for (int voice = SPU_VOICE_SFX_FIRST; voice < SPU_VOICE_COUNT; ++voice) {
+    _sfx_step_fade(voice);
+  }
+
   if (g_music.state == AUDIO_MUSIC_STOPPED) {
     return;
   }

@@ -160,6 +160,7 @@ static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
 #define MUSIC_TEST_PATH   ("\\AUDIO\\LOOP.VAG")
 #define SFX_TEST_PATH     ("\\AUDIO\\BLIP.VAG")
 #define MUSIC_FADE_FRAMES (30)
+#define SFX_FADE_FRAMES   (12) // a bit shorter than the 0.3 s blip, so the ramp is audible
 
 static Audio_Sfx g_sfx_blip = AUDIO_SFX_INVALID;
 
@@ -272,6 +273,7 @@ static void music_toggle(Test_Scene* scene)
     audio_music_fade_out(MUSIC_FADE_FRAMES);
     strcpy(scene->status, "MUSIC FADING OUT");
   } else if (audio_music_play(MUSIC_TEST_PATH, 1)) {
+    audio_music_fade_in(MUSIC_FADE_FRAMES);
     strcpy(scene->status, "MUSIC STREAMING FROM CD");
   } else {
     strcpy(scene->status, "MUSIC FAILED TO START");
@@ -360,16 +362,17 @@ static void scene_update_gameplay(Test_Scene* scene)
   //
   //
   // Every tap makes a noise so the voice pool can be heard working: mash
-  // these and the blips overlap instead of cutting each other off. COLOR-
-  // plays the same sample an octave down to show pitch is free.
+  // these and the blips overlap instead of cutting each other off. COLOR+
+  // fades its blip out and COLOR- fades its in (an octave down, to show
+  // pitch is free), so both fade directions can be heard on an effect.
   //
   if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_NEXT)) {
     scene->box_color_index = (scene->box_color_index + 1) % color_count;
-    audio_sfx_play(g_sfx_blip);
+    audio_sfx_fade_out(audio_sfx_play(g_sfx_blip), SFX_FADE_FRAMES);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_PREV)) {
     scene->box_color_index = (scene->box_color_index + color_count - 1) % color_count;
-    audio_sfx_play_ex(g_sfx_blip, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX, AUDIO_PITCH_NORMAL / 2);
+    audio_sfx_fade_in(audio_sfx_play_ex(g_sfx_blip, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX, AUDIO_PITCH_NORMAL / 2), SFX_FADE_FRAMES);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_DROP_MARKER) && scene->marker_count < MARKER_CAPACITY) {
     Vector2* marker = &scene->markers[scene->marker_count++];
