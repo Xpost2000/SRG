@@ -100,3 +100,32 @@ char* memory_arena_clone_string(Memory_Arena* arena, char* string, size_t length
   buffer[length] = 0;
   return buffer;
 }
+
+void memory_bump_init(Memory_Bump* bump, uint32_t base, uint32_t end)
+{
+  assert(base != 0 && base < end && "[MEM-BUMP] bad range; 0 is the 'full' sentinel.");
+  bump->base   = base;
+  bump->end    = end;
+  bump->cursor = base;
+}
+
+//
+// Both the start and the size are rounded to the alignment, so whatever the
+// caller uploads (DMA rounds transfers up too) stays inside its own slot.
+//
+uint32_t memory_bump_push(Memory_Bump* bump, uint32_t size, uint32_t align)
+{
+  uint32_t start = align_up(bump->cursor, align);
+  uint32_t stop  = start + align_up(size, align);
+
+  if (stop > bump->end) {
+    return 0;
+  }
+  bump->cursor = stop;
+  return start;
+}
+
+void memory_bump_reset(Memory_Bump* bump)
+{
+  bump->cursor = bump->base;
+}
