@@ -5,6 +5,15 @@ hardware, how commercial PS1 games handled music and effects, the sizes involved
 weighed, and where every fact came from. Read `audio.md` to *use* the system; read this to
 understand it or to revisit a decision.
 
+> **Update: we switched to sequenced music.** This doc argues for SPU streaming, and that is
+> what we first built. We then moved to the "Sequenced" row of the table in section 3: a
+> small instrument bank uploaded once at boot, plus MML text songs played by our own
+> sequencer. The deciding factor was wanting every sound resident from boot, with no disc
+> access after loading. The row's main costs turned out small for chiptune-style music. Our
+> bank is about 10 KB, not 100 to 300 KB. And the missing PSn00bSDK player was a few hundred
+> lines of our own. The streaming material below still describes the hardware correctly, and
+> it is the way back if the game ever needs recorded music. `git log` has the driver.
+
 ## 1. How the PS1 makes sound, in plain terms
 
 The PlayStation has a dedicated sound chip, the **SPU**. Think of it as a 24-track sample

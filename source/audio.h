@@ -2,67 +2,70 @@
 #define AUDIO_H
 
 //
-// The game-facing audio layer. Two things a game wants:
+// The game-facing audio layer. Everything is resident: audio_initialize()
+// uploads a small instrument bank into the SPU's sound RAM, audio_song_load()
+// parses a song's text into a few KB of note events, and from then on the
+// disc is never touched for sound again.
 //
-//   SOUND EFFECTS  short samples loaded whole into the SPU's sound RAM and
-//                  fired from any of 22 voices, as many at once as you like.
+//   INSTRUMENTS    one short sample each (piano, bass, drums, a blip...),
+//                  played at any pitch. Firing one directly is a sound
+//                  effect: audio_note_play().
 //
-//   MUSIC          one song at a time, streamed off the CD in small reads
-//                  into a ring buffer, so a three minute track costs 96 KB
-//                  of main RAM instead of three megabytes.
+//   SONGS          a text file of notes (MML, see engine-docs/audio.md),
+//                  up to 8 tracks. Played as music (voices 0-7, one at a
+//                  time, can loop and fade) or as a jingle sound effect
+//                  (borrowed pool voices, several at once).
 //
-// Everything is polled. Call audio_update() once per frame; it is the only
-// thing that talks to the CD drive for music, and it only does so when the
-// drive is idle and the ring is running low. Game code never sees a voice
-// register or a sector.
+// Everything is polled. Call audio_update() once per frame; it is the
+// sequencer, and it is what keys notes on and off.
 //
-// Assets come from res/audio/*.wav|mp3 via the srg_audio_* rules in
-// CMakeLists.txt, which run psxavenc at build time. See engine-docs/audio.md.
+// Instrument samples come from res/audio/*.wav via the srg_audio_sample rules
+// in CMakeLists.txt; songs are res/audio/*.mml, copied to the disc as is.
 //
 // NOTE:
-// - audio_initialize() must run after cd_start().
-// - A sound effect file is loaded through a 64 KB staging buffer, so a single
-//   effect is capped at 64 KB (about 5 seconds at 22.05 kHz). Longer sounds
-//   are music.
-// - While music plays, a blocking CD load (cd_file_read_sync_uncached) is
-//   fine as long as it finishes before the ring drains: about 3.8 seconds,
-//   roughly 1 MB at 2x. Bigger than that: audio_music_stop() first.
-// - audio_sfx_unload_all() throws away every loaded effect. Scenes load
-//   their own set on entry; nothing persists across scenes.
+// - audio_initialize() must run after cd_start(): it reads the bank off the
+//   disc.
+// - Load every song at boot. Loading reads the disc and parses text; playing
+//   is free.
 //
 
 #include "common.h"
 
-#define AUDIO_SFX_MAX            (64)
-#define AUDIO_SFX_FILE_MAX_BYTES (64 * 1024)
-#define AUDIO_SFX_INVALID        (-1)
-#define AUDIO_VOICE_NONE         (-1)
-#define AUDIO_VOLUME_MAX         (0x3FFF)
-#define AUDIO_PITCH_NORMAL       (0x1000) // 12-bit fixed point: 0x800 = one octave down, 0x2000 = one up
+#define AUDIO_SONG_MAX     (32)
+#define AUDIO_SONG_INVALID (-1)
+#define AUDIO_VOICE_NONE   (-1)
+#define AUDIO_VOLUME_MAX   (0x3FFF)
+#define AUDIO_NOTE_ROOT    (60) // MIDI middle C: every instrument's natural pitch. +12 is an octave up.
 
-typedef int Audio_Sfx; // handle from audio_sfx_load(), AUDIO_SFX_INVALID on failure
+//
+// Same order as g_bank in audio.c. MML songs name these as @PIANO, @BASS...
+//
+enum Audio_Instrument {
+  AUDIO_INSTRUMENT_PIANO,
+  AUDIO_INSTRUMENT_BASS,
+  AUDIO_INSTRUMENT_LEAD,
+  AUDIO_INSTRUMENT_KICK,
+  AUDIO_INSTRUMENT_SNARE,
+  AUDIO_INSTRUMENT_HAT,
+  AUDIO_INSTRUMENT_BLIP,
+  AUDIO_INSTRUMENT_COUNT,
+};
+
+typedef int Audio_Song; // handle from audio_song_load(), AUDIO_SONG_INVALID on failure
 
 void audio_initialize(void);
 void audio_update(void);
 
-Audio_Sfx audio_sfx_load(const char* cd_path);
-void      audio_sfx_unload_all(void);
-int       audio_sfx_play(Audio_Sfx sfx);
-int       audio_sfx_play_ex(Audio_Sfx sfx, int16_t vol_l, int16_t vol_r, int pitch);
-void      audio_sfx_stop(int voice);
+Audio_Song audio_song_load(const char* cd_path);
 
-int  audio_music_play(const char* cd_path, int loop);
+int  audio_note_play(int instrument, int note, int16_t vol_l, int16_t vol_r);
+void audio_note_stop(int voice);
+void audio_sfx_play(Audio_Song jingle);
+
+void audio_music_play(Audio_Song song, int loop);
 void audio_music_stop(void);
 void audio_music_fade_out(int frames);
 void audio_music_set_volume(int16_t vol_l, int16_t vol_r);
 int  audio_music_is_playing(void);
-
-//
-// For debug overlays: how much of the ring is full and how many times the
-// stream has run dry since it started.
-//
-size_t audio_music_buffered_bytes(void);
-size_t audio_music_ring_bytes(void);
-int    audio_music_underruns(void);
 
 #endif
