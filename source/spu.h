@@ -69,12 +69,13 @@
 #define SPU_VOICE_SFX_FIRST     (2)
 
 //
-// Main RAM ring buffer the stream plays out of. 96 KB is about 3.8 seconds
-// of 22.05 kHz stereo: that is how long a blocking CD load may take while
-// music is playing before the song stutters. Must be a multiple of the chunk
-// size so a chunk never straddles the wrap.
+// Main RAM ring buffer the stream plays out of. 40 KB is about 3.2 seconds
+// of 11.025 kHz stereo (6.5 s mono, 1.6 s at 22.05 kHz stereo): roughly how
+// long a blocking CD load may take while music is playing before the song
+// stutters. Sized so all of audio stays under 2.5% of main RAM. Must be a
+// multiple of the chunk size so a chunk never straddles the wrap.
 //
-#define SPU_STREAM_RING_SIZE (0x18000)
+#define SPU_STREAM_RING_SIZE (0xA000)
 
 void spu_initialize(void);
 void spu_upload(uint32_t spu_addr, const void* data, size_t size);

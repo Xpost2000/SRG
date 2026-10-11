@@ -8,7 +8,7 @@
 //                  fired from any of 22 voices, as many at once as you like.
 //
 //   MUSIC          one song at a time, streamed off the CD in small reads
-//                  into a ring buffer, so a three minute track costs 96 KB
+//                  into a ring buffer, so a three minute track costs 40 KB
 //                  of main RAM instead of three megabytes.
 //
 // Everything is polled. Call audio_update() once per frame; it is the only
@@ -21,12 +21,12 @@
 //
 // NOTE:
 // - audio_initialize() must run after cd_start().
-// - A sound effect file is loaded through a 64 KB staging buffer, so a single
-//   effect is capped at 64 KB (about 5 seconds at 22.05 kHz). Longer sounds
-//   are music.
+// - Sound effects reach sound RAM through an 8 KB staging buffer, a piece at
+//   a time, so their size is limited only by the sample bank.
 // - While music plays, a blocking CD load (cd_file_read_sync_uncached) is
-//   fine as long as it finishes before the ring drains: about 3.8 seconds,
-//   roughly 1 MB at 2x. Bigger than that: audio_music_stop() first.
+//   fine as long as it finishes before the ring drains: at least ~2 seconds
+//   for 11 kHz stereo, roughly 600 KB at 2x. Bigger than that: split the
+//   load and call audio_update() between pieces, or audio_music_stop() first.
 // - audio_sfx_unload_all() throws away every loaded effect. Scenes load
 //   their own set on entry; nothing persists across scenes.
 // - Any effect voice or the music can fade in or out over N frames, stepped
@@ -37,7 +37,6 @@
 #include "common.h"
 
 #define AUDIO_SFX_MAX            (64)
-#define AUDIO_SFX_FILE_MAX_BYTES (64 * 1024)
 #define AUDIO_SFX_INVALID        (-1)
 #define AUDIO_VOICE_NONE         (-1)
 #define AUDIO_VOLUME_MAX         (0x3FFF)

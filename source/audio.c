@@ -44,9 +44,19 @@ struct Audio_Vag_Info {
 
 //
 // How many sectors must be free before the feeder bothers the drive. One read
-// of 24 sectors (48 KB) every half second beats a seek per frame.
+// of 8 sectors (16 KB) at a time beats a seek per frame, and keeps the 40 KB
+// ring at least 24 KB full between refills.
 //
-#define AUDIO_REFILL_SECTORS (24)
+#define AUDIO_REFILL_SECTORS (8)
+
+//
+// Staging buffer size in sectors. Sound effects pass through it a piece at a
+// time, so it does not cap how big an effect can be; it only trades RAM for
+// seeks, since each piece is its own CdRead. 4 sectors = 8 KB, so a 64 KB
+// effect is 8 reads.
+//
+#define AUDIO_STAGING_SECTORS (4)
+#define AUDIO_STAGING_SIZE    (AUDIO_STAGING_SECTORS * CD_SECTOR_SIZE)
 
 #define AUDIO_SFX_VOICE_COUNT (SPU_VOICE_COUNT - SPU_VOICE_SFX_FIRST)
 
@@ -111,11 +121,11 @@ static Audio_Sfx_Voice g_sfx_voices[AUDIO_SFX_VOICE_COUNT]; // index = voice - S
 static Audio_Music     g_music;
 
 //
-// Every file goes through here on its way to the SPU: a whole sound effect,
-// or just the header sector of a song. Word aligned because the SPU DMA
-// reads straight out of it. 64 KB is the size cap on a single effect.
+// Every file goes through here on its way to the SPU: a sound effect 8 KB at
+// a time, or just the header sector of a song. Word aligned because the SPU
+// DMA reads straight out of it.
 //
-static uint32_t g_staging[AUDIO_SFX_FILE_MAX_BYTES / 4];
+static uint32_t g_staging[AUDIO_STAGING_SIZE / 4];
 
 static void _music_read_done(CdlIntrResult result, uint8_t* payload);
 
@@ -206,6 +216,37 @@ static int16_t _fade_apply(Audio_Fade* fade, int16_t volume)
 //  Sound effects
 // ----------------------------------------------------------------------------
 
+//
+// Blocking read of `sectors` sectors, starting `first` sectors into the file.
+// cdfs only reads a file from its start, and an effect now arrives a piece at
+// a time. Waits out any music read still in flight first. inflight_sectors
+// stays 0 for this read, so _music_read_done lets it pass.
+//
+static int _sfx_read_sectors(CD_File* file, int first, int sectors)
+{
+  CdlLOC position;
+
+  CdReadSync(0, 0);
+  CdIntToPos(CdPosToInt(&file->file_index.pos) + first, &position);
+  CdControl(CdlSetloc, &position, 0);
+  if (!CdRead(sectors, g_staging, CdlModeSpeed)) {
+    return 0;
+  }
+  return CdReadSync(0, 0) >= 0;
+}
+
+//
+// The effect goes to sound RAM one staging buffer at a time, header and all,
+// so the bytes land in sound RAM exactly as they sit in the file:
+//
+//   bank allocation (64-aligned)
+//   | 16 B pad | 48 B header | ADPCM ...                         |
+//              ^ upload_addr ^ spu_addr (64-aligned, the sample)
+//
+// Uploading the header too means every piece starts at a sector boundary of
+// the file and lands on an 8-byte SPU address, with no shuffling in main
+// RAM. The 64 bytes ahead of the sample are dead space no voice points at.
+//
 Audio_Sfx audio_sfx_load(const char* cd_path)
 {
   CD_File file = cd_file_open(cd_path);
@@ -219,13 +260,12 @@ Audio_Sfx audio_sfx_load(const char* cd_path)
     return AUDIO_SFX_INVALID;
   }
 
-  size_t read_size = cd_file_get_memory_required(&file);
-  if (read_size > sizeof(g_staging)) {
-    _debugprintf("[AUDIO] sfx too big for staging (%d > %d): %s", read_size, sizeof(g_staging), cd_path);
+  int file_sectors = (int) (cd_file_get_memory_required(&file) / CD_SECTOR_SIZE);
+
+  if (!_sfx_read_sectors(&file, 0, min(file_sectors, AUDIO_STAGING_SECTORS))) {
+    _debugprintf("[AUDIO] read failed: %s", cd_path);
     return AUDIO_SFX_INVALID;
   }
-
-  cd_file_read_sync_uncached(&file, (uint8_t*) g_staging, read_size);
 
   Audio_Vag_Info info;
   if (!_vag_read_header(g_staging, AUDIO_VAG_MAGIC_SAMPLE, &info)) {
@@ -233,18 +273,27 @@ Audio_Sfx audio_sfx_load(const char* cd_path)
     return AUDIO_SFX_INVALID;
   }
 
-  uint32_t spu_addr = memory_bump_push(&g_sfx_bank, info.data_size, AUDIO_SPU_ALIGN);
-  if (!spu_addr) {
+  // psxavenc pads the data to 64 bytes, so this never reads past the file
+  uint32_t upload_size = align_up(AUDIO_VAG_HEADER_SIZE + info.data_size, AUDIO_SPU_ALIGN);
+  uint32_t bank_addr   = memory_bump_push(&g_sfx_bank, AUDIO_SPU_ALIGN - AUDIO_VAG_HEADER_SIZE + upload_size, AUDIO_SPU_ALIGN);
+  if (!bank_addr) {
     _debugprintf("[AUDIO] sound RAM bank full, dropping %s", cd_path);
     return AUDIO_SFX_INVALID;
   }
 
-  //
-  // The ADPCM starts right after the 48-byte header, which keeps it word
-  // aligned for the DMA. psxavenc pads the data to 64 bytes so the rounded
-  // upload never reads past the file.
-  //
-  spu_upload(spu_addr, (uint8_t*) g_staging + AUDIO_VAG_HEADER_SIZE, align_up(info.data_size, AUDIO_SPU_ALIGN));
+  uint32_t spu_addr    = bank_addr + AUDIO_SPU_ALIGN;
+  uint32_t upload_addr = spu_addr - AUDIO_VAG_HEADER_SIZE;
+
+  for (uint32_t offset = 0; offset < upload_size; offset += AUDIO_STAGING_SIZE) {
+    int first = (int) (offset / CD_SECTOR_SIZE);
+
+    // the first piece is already in staging from the header read
+    if (first > 0 && !_sfx_read_sectors(&file, first, min(file_sectors - first, AUDIO_STAGING_SECTORS))) {
+      _debugprintf("[AUDIO] read failed: %s", cd_path);
+      return AUDIO_SFX_INVALID; // ponytail: the bank space leaks until audio_sfx_unload_all()
+    }
+    spu_upload(upload_addr + offset, g_staging, min(upload_size - offset, (uint32_t) AUDIO_STAGING_SIZE));
+  }
 
   Audio_Sfx     id     = g_sfx_count++;
   Audio_Sample* sample = &g_sfx[id];
@@ -360,10 +409,10 @@ void audio_sfx_fade_out(int voice, int frames)
 //
 // How a song gets from the disc to the speakers:
 //
-//   CD file ──CdRead (DMA)──► ring, 96 KB main RAM ──SPU IRQ──► SPU double buffer ──► voices 0,1
+//   CD file ──CdRead (DMA)──► ring, 40 KB main RAM ──SPU IRQ──► SPU double buffer ──► voices 0,1
 //            ^^^^^^^^^^^^^^                         ^^^^^^^^^
-//            this file: a few big reads,            spu.c: one 8 KB chunk every
-//            only when the drive is idle            ~325 ms, all by itself
+//            this file: a few big reads,            spu.c: one chunk every
+//            only when the drive is idle            ~650 ms at 11 kHz, all by itself
 //
 // This file is only the left half: keep the ring topped up.
 //
@@ -437,8 +486,8 @@ static int _music_read_next_sectors(void)
 }
 
 //
-// Fill the ring before the first note so the stream starts with ~3.8 seconds
-// of slack. Blocking, but 96 KB at 2x is about a third of a second, and a
+// Fill the ring before the first note so the stream starts with ~3.2 seconds
+// of slack (11 kHz stereo). Blocking, but 40 KB at 2x is about 0.15 seconds, and a
 // song start is a natural place to spend it.
 //
 static void _music_prefill_ring(void)
@@ -621,12 +670,12 @@ static int _music_step_fade(void)
 //                      own cdfs load may own it; either way, try next frame.
 //
 //   whole file read?   tell the driver "no more data is coming" and go to
-//                      DRAINING. Not a stop: the last ~3.8 s of the song is
+//                      DRAINING. Not a stop: the last ~3.2 s of the song is
 //                      still sitting in the ring waiting to play.
 //
-//   ring has room?     only once 24 sectors are free. A 22.05 kHz stereo song
-//                      eats ~12 sectors a second and the drive delivers 150,
-//                      so one big read every couple of seconds keeps up while
+//   ring has room?     only once 8 sectors are free. An 11 kHz stereo song
+//                      eats ~6 sectors a second and the drive delivers 150,
+//                      so one 16 KB read every ~1.3 s keeps up while
 //                      leaving the drive idle nearly all the time.
 //
 static void _music_step_feeder(void)

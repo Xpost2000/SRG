@@ -96,7 +96,7 @@ the disc:
 | CD-DA tracks | Ridge Racer, Wipeout, Ridge Racer Type 4 | Best quality, no CPU or SPU cost, players can play the disc in a CD player | 10 MB/min, **nothing else can load during music**, speed switch between 1x play and 2x read, seek gap between tracks |
 | XA streaming | Silent Hill, Tomb Raider 3 onward, Mega Man Legends, every FMV (FF7, MGS) | 4:1 compression, no voices or sound RAM, 8 seamlessly switchable layers | 37.8 kHz only, gap on loop, drive locked to the stream, skips on worn drives, needs an interleaver tool |
 | Sequenced (SEQ/VAB, Square's AKAO) | FF7 and FF8 background music, Crash Bandicoot, most Konami and Capcom titles | Tens of KB per song, CD completely free, perfect loops and tempo changes | Instrument bank takes 100 to 300 KB of sound RAM and most of the 24 voices, needs a sequencer and a composer pipeline, PSn00bSDK ships no player |
-| SPU streaming (ring + interrupt) | Dance Dance Revolution 3rdMix onward, Metal Gear Solid and Tron Bonne dialogue, PSn00bSDK `cdstream` | Any sample rate (22 kHz halves the size), 2 voices and 16 KB sound RAM, **seamless loop**, crossfades, drive idle about 85% of the time so loads fit between refills, software error correction | 96 KB main RAM ring, one interrupt handler, load sequences must yield to the feeder |
+| SPU streaming (ring + interrupt) | Dance Dance Revolution 3rdMix onward, Metal Gear Solid and Tron Bonne dialogue, PSn00bSDK `cdstream` | Any sample rate (22 kHz halves the size), 2 voices and 16 KB sound RAM, **seamless loop**, crossfades, drive idle about 85% of the time so loads fit between refills, software error correction | 40 KB main RAM ring, one interrupt handler, load sequences must yield to the feeder |
 
 ### XA versus SPU streaming, the plain version
 
@@ -157,8 +157,8 @@ Bytes per second of SPU ADPCM is `rate / 28 * 16 * channels`.
 Effects at 22.05 kHz mono cost 12.6 KB per second. The placeholder song, 6 seconds of 22 kHz
 stereo, is 529 KB as a WAV, 73 KB as an MP3 and 154 KB as streamed ADPCM.
 
-The main RAM side: the ring is 96 KB (about 3.8 seconds of 22 kHz stereo) and the staging
-buffer 64 KB, 160 KB of the 2 MB in total.
+The main RAM side: the ring is 40 KB (about 3.2 seconds of 11 kHz stereo) and the staging
+buffer 8 KB, about 49 KB of the 2 MB in total (under 2.5%), whatever the asset count.
 
 ## 6. Decisions and why
 

@@ -39,7 +39,8 @@ psn00bsdk_add_executable(game GPREL
 #      expects), loop flag at the end of every chunk. channels is 1 or 2.
 #
 #  Size rule of thumb: bytes per second = rate / 28 * 16 * channels, so
-#  22050 Hz stereo is about 25 KB/s, 1.5 MB per minute.
+#  22050 Hz stereo is about 25 KB/s, 1.5 MB per minute. 11025 Hz, the
+#  project default, is half that.
 # ----------------------------------------------------------------------------
 find_program(PSXAVENC psxavenc HINTS ${PROJECT_SOURCE_DIR}/toolchain-win64/bin REQUIRED)
 
@@ -71,8 +72,8 @@ function(srg_audio_music name source rate channels)
 	set(AUDIO_ASSETS ${AUDIO_ASSETS} ${_out} PARENT_SCOPE)
 endfunction()
 
-srg_audio_sfx  (BLIP res/audio/blip.wav 22050)
-srg_audio_music(LOOP res/audio/loop.mp3 22050 1)
+srg_audio_sfx  (BLIP res/audio/blip.wav 11025)
+srg_audio_music(LOOP res/audio/loop.mp3 11025 1)
 
 psn00bsdk_add_cd_image(
 	iso      # Target name
