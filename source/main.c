@@ -837,10 +837,13 @@ int main(int argc, const char **argv)
     // draw another box!
     {
       static int e = 0;
+      static int d = 0;
       R_render_push_mesh((Render_Command_Mesh) {
-	.position = { 0, 0, 0 },
+	.position = { isin(d += (4096/120)) * 200, 0, 0 },
+	/* .position = { ONE * 200, 0, 0 }, */
 	.scale = { ONE, ONE, ONE },
-	.rotation = { 0, e, e },
+	/* .rotation = { 0, e, e }, */
+	.rotation = {},
 	.mesh = &g_testcube
       });
       e+=4;

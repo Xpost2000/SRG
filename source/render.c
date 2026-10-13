@@ -63,7 +63,7 @@ static Render_Command g_render_commands[MAX_RENDER_COMMANDS];
 MATRIX color_mtx = {
   ONE, 0, 0,	// Red
   ONE, 0, ONE,	// Green
-  ONE, 0, 0	// Blue
+  ONE, ONE, 0	// Blue
 };
 
 // Light matrix
@@ -72,9 +72,9 @@ MATRIX color_mtx = {
 MATRIX light_mtx = {
   /* X,  Y,  Z */
   /* 0 , -2048 , -2048, */
-  0 ,     0, -2048,
-  0	  , 0	  , 0,
-  2048	  , 0	  , 0
+  0 ,     0, -1,
+  -ONE	  , 0	  , 0,
+  ONE	  , 0	  , 0
 };
 
 VECTOR cam_pos;
@@ -367,9 +367,9 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 
   scale_vector	     = mesh_command->scale;
   rotation_vector    = mesh_command->rotation;
-  translation_vector.vx = mesh_command->position.vx;
-  translation_vector.vy = mesh_command->position.vy;
-  translation_vector.vz = mesh_command->position.vz;
+  translation_vector.vx = mesh_command->position.vx >> 12;
+  translation_vector.vy = mesh_command->position.vy >> 12;
+  translation_vector.vz = mesh_command->position.vz >> 12;
 
   translation_vector.vx += -cam_pos.vx >> 12;
   translation_vector.vy += -cam_pos.vy >> 12;
@@ -419,7 +419,8 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
     setRGB2(triangle, mesh->colors[i+2].vx, mesh->colors[i+2].vy, mesh->colors[i+2].vz);
 
-    gte_ldrgb(&triangle->r0);
+    /* gte_ldrgb(&triangle->r0); */
+    gte_ldrgb3(&triangle->r2, &triangle->r1, &triangle->r0);
     gte_ldv3(&mesh->normals[i], &mesh->normals[i+1], &mesh->normals[i+2]);
     gte_nct_b();
     gte_strgb3(&triangle->r0, &triangle->r1, &triangle->r2);

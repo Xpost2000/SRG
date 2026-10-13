@@ -65,7 +65,7 @@ struct Render_Mesh {
 };
 
 struct Render_Command_Mesh {
-  SVECTOR position;
+  VECTOR position;
   SVECTOR scale;
   SVECTOR rotation;
   Render_Mesh* mesh;
