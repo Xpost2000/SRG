@@ -440,6 +440,4 @@ void R_render_end_frame(void)
     } break;
     }
   }
-
-  g_render_command_count = 0;
 }
