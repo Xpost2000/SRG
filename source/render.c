@@ -1,9 +1,16 @@
 #include "render.h"
 
 #include <psxgpu.h>
+#include <psxgte.h>
+
+//
+// GTE inline ASM macros
+//
+#include <inline_c.h>
 
 #define RENDER_OT_LENGTH          (128)
 #define RENDER_PACKET_BUFFER_SIZE (32768)
+#define MAX_RENDER_COMMANDS       (8192)
 
 //
 // These are the basic structures for
@@ -31,6 +38,35 @@ typedef struct Render_Buffer {
 static Render_Buffer g_buffers[2];
 static int           g_active_buffer;
 static uint8_t*      g_next_packet;
+
+static uint32_t       g_render_command_count = 0; 
+static Render_Command g_render_commands[MAX_RENDER_COMMANDS];
+
+// TODO(jerry): remove hacky shit
+
+// Light color matrix
+// Each column represents the color matrix of each light source and is
+// used as material color when using gte_ncs() or multiplied by a
+// source color when using gte_nccs(). 4096 is 1.0 in this matrix
+// A column of zeroes effectively disables the light source.
+MATRIX color_mtx = {
+  ONE, 0, 0,	// Red
+  0, 0, 0,	// Green
+  ONE, 0, 0	// Blue
+};
+
+// Light matrix
+// Each row represents a vector direction of each light source.
+// An entire row of zeroes effectively disables the light source.
+MATRIX light_mtx = {
+  /* X,  Y,  Z */
+  -2048 , -2048 , -2048,
+  0	  , 0	  , 0,
+  0	  , 0	  , 0
+};
+
+VECTOR cam_pos;
+
 
 //
 // Setting it up is pretty easy, we just pick a section
@@ -114,6 +150,21 @@ void render_initialize(void)
   // Turn on display
   //
   SetDispMask(1);
+
+  //
+  // Initialize the GTE and configure some of the
+  // default settings for it.
+  //
+  InitGeom();
+
+  gte_SetGeomOffset(RENDER_SCREEN_WIDTH/2, RENDER_SCREEN_HEIGHT/2);
+  gte_SetGeomScreen(RENDER_SCREEN_WIDTH/2);
+  gte_SetBackColor(63, 63, 63);
+
+  // temp camera setup
+  cam_pos.vx = 0;
+  cam_pos.vy = 0;
+  cam_pos.vz = ONE * 100;
 }
 
 //
@@ -192,4 +243,47 @@ void render_end_frame(void)
   g_active_buffer ^= 1;
   g_next_packet    = display_buffer->packets;
   ClearOTagR(display_buffer->ordering_table, RENDER_OT_LENGTH);
+}
+
+//
+// NOTE(jerry): new rendering code
+//
+
+void R_render_new_frame(void)
+{
+  g_render_command_count = 0;
+}
+
+void R_render_push_mesh(Render_Command_Mesh mesh)
+{
+  Render_Command* command;
+
+  assert(g_render_command_count < array_count(g_render_commands) && "[RENDER] Out of rendering commands, either bump the number or fix your damn scene!");
+  command = &g_render_commands[g_render_command_count++];
+
+  command->type = RENDER_COMMAND_MESH;
+  command->mesh = mesh;
+}
+
+static void R_render_command_present_mesh(Render_Command_Mesh* mesh)
+{
+  MATRIX xform_matrix;
+}
+
+void R_render_end_frame(void)
+{
+  int i;
+
+  for (i = 0; i < g_render_command_count; ++i) {
+    Render_Command* command = g_render_commands + i;
+
+    switch (command->type) {
+    case RENDER_COMMAND_MESH: {
+      R_render_command_present_mesh(&command->mesh);
+    } break;
+    default: {
+      assert(0 && "[RENDER] Indeterminate render command encountered, memory stomping?");
+    } break;
+    }
+  }
 }
