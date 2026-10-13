@@ -103,5 +103,7 @@ void render_text(int x, int y, int z, const char* text);
 void render_end_frame(void);
 
 void* _new_primitive(int z, size_t size);
+void  _sort_primitive(int z, void* prim);
+void* _alloc_primitive(size_t size);
 
 #endif

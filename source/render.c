@@ -12,6 +12,17 @@
 #define RENDER_PACKET_BUFFER_SIZE (32768)
 #define MAX_RENDER_COMMANDS       (8192)
 
+typedef enum Clip_Edge_Result Clip_Edge_Result;
+
+enum Clip_Edge_Result {
+  CLIP_EDGE_RESULT_NONE   = 0,
+  CLIP_EDGE_RESULT_LEFT   = 0x1,
+  CLIP_EDGE_RESULT_RIGHT  = 0x2,
+  CLIP_EDGE_RESULT_TOP    = 0x4,
+  CLIP_EDGE_RESULT_BOTTOM = 0x8,
+  CLIP_EDGE_RESULT_COUNT  = 4,
+};
+
 //
 // These are the basic structures for
 // setting up a "swapchain"(https://en.wikipedia.org/wiki/Swap_chain).
@@ -168,6 +179,25 @@ void render_initialize(void)
 }
 
 //
+// I hope these are inlined!
+//
+void _sort_primitive(int z, void* prim)
+{
+  Render_Buffer* buffer    = &g_buffers[g_active_buffer];
+  assert(z >= 0 && z < RENDER_OT_LENGTH && "[RENDER] z outside ordering table.");
+  addPrim(&buffer->ordering_table[z], prim);
+}
+
+void* _alloc_primitive(size_t size)
+{
+  Render_Buffer* buffer    = &g_buffers[g_active_buffer];
+  uint8_t*       primitive = g_next_packet;
+  g_next_packet += size;
+  assert(g_next_packet <= &buffer->packets[RENDER_PACKET_BUFFER_SIZE] && "[RENDER] Out of packet buffer, raise RENDER_PACKET_BUFFER_SIZE.");
+  return (void*) primitive;
+}
+
+//
 // Carve `size` bytes out of the active packet buffer and link the new
 // primitive into the OT at depth z.
 //
@@ -177,15 +207,8 @@ void render_initialize(void)
 //
 void* _new_primitive(int z, size_t size)
 {
-  Render_Buffer* buffer    = &g_buffers[g_active_buffer];
-  uint8_t*       primitive = g_next_packet;
-
-  assert(z >= 0 && z < RENDER_OT_LENGTH && "[RENDER] z outside ordering table.");
-
-  addPrim(&buffer->ordering_table[z], primitive);
-  g_next_packet += size;
-
-  assert(g_next_packet <= &buffer->packets[RENDER_PACKET_BUFFER_SIZE] && "[RENDER] Out of packet buffer, raise RENDER_PACKET_BUFFER_SIZE.");
+  uint8_t* primitive = _alloc_primitive(size);
+  _sort_primitive(z, primitive);
   return primitive;
 }
 
@@ -265,16 +288,79 @@ void R_render_push_mesh(Render_Command_Mesh mesh)
   command->mesh = mesh;
 }
 
-static void R_render_command_present_mesh(Render_Command_Mesh* mesh)
+static uint8_t R_point_clip(int x, int y)
 {
+  uint8_t outside_of = CLIP_EDGE_RESULT_NONE;
+
+  outside_of |= (CLIP_EDGE_RESULT_LEFT)   * (x < 0);
+  outside_of |= (CLIP_EDGE_RESULT_RIGHT)  * (x >= RENDER_SCREEN_WIDTH);
+  outside_of |= (CLIP_EDGE_RESULT_BOTTOM) * (y >= RENDER_SCREEN_HEIGHT);
+  outside_of |= (CLIP_EDGE_RESULT_TOP)    * (y < 0);
+
+  return outside_of;
+}
+
+static int R_triangle_clip(POLY_G3* triangle, int avg_z)
+{
+  uint8_t clip0;
+  uint8_t clip1;
+  uint8_t clip2;
+
+  uint8_t clip01;
+  uint8_t clip12;
+  uint8_t clip20;
+
+  if (avg_z < 0 || avg_z >= RENDER_OT_LENGTH) {
+    return 1;
+  }
+
+  clip0  = R_point_clip(triangle->x0, triangle->y0);
+  clip1  = R_point_clip(triangle->x1, triangle->y1);
+  clip2  = R_point_clip(triangle->x2, triangle->y2);
+
+  clip01 = clip0 & clip1;
+  clip12 = clip1 & clip2;
+  clip20 = clip2 & clip0;
+
+  if (clip01 == 0) {
+    return 0;
+  }
+
+  if (clip12 == 0) {
+    return 0;
+  }
+
+  if (clip20 == 0) {
+    return 0;
+  }
+
+  return 1;
+}
+
+static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
+{
+  //
+  // NOTE(jerry): for basic testing, only gourand geometry for now.
+  // untextured, but I can expand it in future PR, it's about the same
+  // code...
+  //
+  Render_Mesh* mesh;
+  POLY_G3*     triangle;  
+  int          i;
+  int          z;
+
   MATRIX  xform_matrix;
   SVECTOR scale_vector;
   SVECTOR rotation_vector;
   SVECTOR translation_vector;
 
-  scale_vector	     = mesh->scale;
-  rotation_vector    = mesh->rotation;
-  translation_vector = mesh->position;
+  mesh = &mesh_command->mesh;
+
+  assert(mesh->vertex_count % 3 && "[RENDER] The engine only supports triangles (non-indexed for now :( ).");
+
+  scale_vector	     = mesh_command->scale;
+  rotation_vector    = mesh_command->rotation;
+  translation_vector = mesh_command->position;
 
   translation_vector.vx += -cam_pos.vx >> 12;
   translation_vector.vy += -cam_pos.vy >> 12;
@@ -294,8 +380,48 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh)
   // not necessary, and since it's inlined-assembler it can't be optimized
   // unless it's done by hand :)
   //
+  // Also there's a lot of NOPs, and I'm pretty sure it's possible to use
+  // the cycles in between the nops for more stuff with pipelining.
+  //
   gte_SetRotMatrix(&xform_matrix);
   gte_SetTransMatrix(&xform_matrix);
+
+  for (i = 0; i < mesh->vertex_count; i+=3) {
+    triangle = _alloc_primitive(sizeof(*triangle));
+    setPolyG3(triangle);
+
+    //
+    // TODO: insert into packet
+    //
+    setRGB0(triangle, 127, 127, 127);
+
+    gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
+
+    gte_rtpt();
+    gte_nclip();
+    gte_stopz(&z);
+
+    if (z < 0) {
+      continue;
+    }
+
+    gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
+
+    gte_avsz3();
+    gte_stotz(&z);
+
+    if (R_triangle_clip(&triangle, z)) {
+      continue;
+    }
+
+    gte_ldrgb(&triangle->r0);
+    gte_ldv3(&mesh->normals[i], &mesh->normals[i+1], &mesh->normals[i+2]);
+    gte_ncs();
+
+    gte_strgb(&triangle->r0);
+
+    _sort_primitive(z, triangle);
+  }
 }
 
 void R_render_end_frame(void)
@@ -314,4 +440,6 @@ void R_render_end_frame(void)
     } break;
     }
   }
+
+  g_render_command_count = 0;
 }
