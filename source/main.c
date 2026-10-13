@@ -828,10 +828,11 @@ int main(int argc, const char **argv)
     /* scene_draw(&scene); */
     // draw another box!
     {
+      static int e = 0;
       R_render_push_mesh((Render_Command_Mesh) {
 	.position = { 0, 0, 0 },
 	.scale = { ONE, ONE, ONE },
-	.rotation = { 0, 0, 0 },
+	.rotation = { 0, e+=2, 0 },
 	.mesh = &g_testcube
       });
     }

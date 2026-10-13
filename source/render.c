@@ -173,11 +173,9 @@ void render_initialize(void)
   gte_SetBackColor(63, 63, 63);
 
   // temp camera setup
-  cam_pos.vx = ONE;
+  cam_pos.vx = 0;
   cam_pos.vy = 0;
-  cam_pos.vz = 0;
-  /* cam_pos.vz = ONE * 100; */
-  /* cam_pos.vz = ONE * 100; */
+  cam_pos.vz = -ONE * 400;
 }
 
 //
