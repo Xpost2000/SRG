@@ -62,7 +62,7 @@ static Render_Command g_render_commands[MAX_RENDER_COMMANDS];
 // A column of zeroes effectively disables the light source.
 MATRIX color_mtx = {
   ONE, 0, 0,	// Red
-  0, 0, 0,	// Green
+  ONE, 0, ONE,	// Green
   ONE, 0, 0	// Blue
 };
 
@@ -71,9 +71,10 @@ MATRIX color_mtx = {
 // An entire row of zeroes effectively disables the light source.
 MATRIX light_mtx = {
   /* X,  Y,  Z */
-  -2048 , -2048 , -2048,
+  /* 0 , -2048 , -2048, */
+  0 ,     0, -2048,
   0	  , 0	  , 0,
-  0	  , 0	  , 0
+  2048	  , 0	  , 0
 };
 
 VECTOR cam_pos;
@@ -170,7 +171,7 @@ void render_initialize(void)
 
   gte_SetGeomOffset(RENDER_SCREEN_WIDTH/2, RENDER_SCREEN_HEIGHT/2);
   gte_SetGeomScreen(RENDER_SCREEN_WIDTH/2);
-  gte_SetBackColor(63, 63, 63);
+  gte_SetBackColor(32,32,32);
 
   // temp camera setup
   cam_pos.vx = 0;
@@ -382,36 +383,15 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   //
   // NOTE(jerry):
   //
-  // Manually inlined and reordered load/use/stores to
-  // try and get slightly better pipeline throughput
+  // There are opportunities to optimize the instruction scheduling
+  // on the assembly level to increase instruction throughput, but this
+  // is easier to read
   //
 
+  gte_SetColorMatrix( &color_mtx );
   gte_SetLightMatrix(&local_light_matrix);
   gte_SetRotMatrix(&xform_matrix);
   gte_SetTransMatrix(&xform_matrix);
-
-  /* __asm__ volatile ( */
-  /* 	"lw	$t0, 0( %0 );" */
-  /* 	"lw	$t1, 4( %0 );" */
-
-  /* 	"ctc2	$t0, $0;" */
-  /* 	"lw	$t3, 20( %0 );" */
-  /* 	"ctc2	$t1, $1;" */
-  /* 	"lw	$t4, 24( %0 );" */
-  /* 	"ctc2	$t3, $5;" */
-  /* 	"lw	$t0, 8( %0 );" */
-  /* 	"ctc2	$t4, $6;" */
-  /* 	"lw	$t1, 12( %0 );" */
-  /* 	"ctc2	$t0, $2;" */
-  /* 	"lhu	$t2, 16( %0 );" */
-  /* 	"ctc2	$t1, $3;" */
-  /* 	"lw	$t5, 28( %0 );" */
-  /* 	"ctc2	$t2, $4;" */
-  /* 	"ctc2	$t5, $7;" */
-  /*   : */
-  /*   : "r" (&xform_matrix) */
-  /*   : "$t2", "$t5" */
-  /* ); */
 
   for (i = 0; i < mesh->vertex_count; i+=3) {
     triangle = _alloc_primitive(sizeof(*triangle));
@@ -419,71 +399,30 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 
     gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
 
-    // NOTE(jerry):
-    // maybe would've been better to interleave with ldv3?
-    setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
-    setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
-    setRGB2(triangle, mesh->colors[i+2].vx, mesh->colors[i+2].vy, mesh->colors[i+2].vz);
-
-    gte_rtpt();
-    gte_nclip();
+    gte_rtpt_b();
+    gte_nclip_b();
     gte_stopz(&z);
-    //
-    // NOTE(jerry):
-    // The last 3 macros have a bunch of NOPs, which I can fill up with word loads
-    // for the colors
-    //
-    // Might as well use that waiting time...
-    //
-  /* __asm__ volatile ( */
-  /*   "lhu $t0, 0(%0);" */
-  /*   "lhu $t1, 2(%0);" */
-  /*   "lhu $t2, 4(%0);" */
-
-  /*   "lhu $t3, 0(%1);" */
-  /*   "lhu $t4, 2(%1);" */
-  /*   "lhu $t5, 4(%1);" */
-
-  /*   "sb $t0, 4(%4);" */
-  /*   "sb $t1, 5(%4);" */
-  /*   "sb $t2, 6(%4);" */
-  /*   "cop2 0x0280030;" */
-
-  /*   "sb $t6, 20(%4);" */
-  /*   "sb $t7, 21(%4);" */
-  /*   "sb $t8, 22(%4);" */
-  /*   "cop2 0x01400006;" */
-
-  /*   "lhu $t6, 0(%2);" */
-  /*   "lhu $t7, 2(%2);" */
-  /*   "lhu $t8, 4(%2);" */
-  /*   "swc2 $24, 0(%3)" */
-
-  /*   "sb $t3, 12(%4);" */
-  /*   "sb $t4, 13(%4);" */
-  /*   "sb $t5, 14(%4);" */
-
-  /*   : */
-  /*   : "r" (&mesh->colors[i]), "r" (&mesh->colors[i+1]), "r" (&mesh->colors[i+2]), "r" (&z), "r" (triangle) */
-  /*   : "memory", "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$t8" */
-  /* ); */
 
     if (z < 0) {
       continue;
     }
 
     gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
-    gte_avsz3();
+    gte_avsz3_b();
     gte_stotz(&z);
 
     if (R_triangle_clip(&triangle, z)) {
       continue;
     }
 
+    setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
+    setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
+    setRGB2(triangle, mesh->colors[i+2].vx, mesh->colors[i+2].vy, mesh->colors[i+2].vz);
+
     gte_ldrgb(&triangle->r0);
     gte_ldv3(&mesh->normals[i], &mesh->normals[i+1], &mesh->normals[i+2]);
-    gte_ncs();
-    gte_strgb(&triangle->r0);
+    gte_nct_b();
+    gte_strgb3(&triangle->r0, &triangle->r1, &triangle->r2);
 
     _sort_primitive(z, triangle);
   }
