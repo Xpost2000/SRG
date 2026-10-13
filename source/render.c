@@ -8,7 +8,7 @@
 //
 #include <inline_c.h>
 
-#define RENDER_OT_LENGTH          (128)
+#define RENDER_OT_LENGTH          (1024)
 #define RENDER_PACKET_BUFFER_SIZE (32768)
 #define MAX_RENDER_COMMANDS       (8192)
 
@@ -173,10 +173,11 @@ void render_initialize(void)
   gte_SetBackColor(63, 63, 63);
 
   // temp camera setup
-  cam_pos.vx = 0;
+  cam_pos.vx = ONE;
   cam_pos.vy = 0;
-  /* cam_pos.vz = ONE * 100; */
   cam_pos.vz = 0;
+  /* cam_pos.vz = ONE * 100; */
+  /* cam_pos.vz = ONE * 100; */
 }
 
 //
@@ -315,6 +316,10 @@ static int R_triangle_clip(POLY_G3* triangle, int avg_z)
     return 1;
   }
 
+#if 1
+  return 0;
+#endif
+
   clip0  = R_point_clip(triangle->x0, triangle->y0);
   clip1  = R_point_clip(triangle->x1, triangle->y1);
   clip2  = R_point_clip(triangle->x2, triangle->y2);
@@ -337,6 +342,8 @@ static int R_triangle_clip(POLY_G3* triangle, int avg_z)
 
   return 1;
 }
+
+static int once_only = 1;
 
 static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 {
@@ -362,12 +369,27 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   rotation_vector    = mesh_command->rotation;
   translation_vector = mesh_command->position;
 
-  translation_vector.vx += -cam_pos.vx >> 12;
-  translation_vector.vy += -cam_pos.vy >> 12;
-  translation_vector.vz += -cam_pos.vz >> 12;
+  /* translation_vector.vx += -cam_pos.vx >> 12; */
+  /* translation_vector.vy += -cam_pos.vy >> 12; */
+  /* translation_vector.vz += -cam_pos.vz >> 12; */
+  static int xx = 0;
+  static int xy = 0;
+  static int xz = 0;
+  translation_vector.vx += xx;
+  translation_vector.vy += xy;
+  translation_vector.vz += xz;
+
+  if (once_only)
+    _debugprintf("init XFORM with camera pos: %d, %d, %d",
+		 translation_vector.vx,
+		 translation_vector.vy,
+		 translation_vector.vz);
 
   RotMatrix(&rotation_vector, &xform_matrix);
+  if (once_only) _debugprintf("Set XFORM rotation");
+
   TransMatrix(&xform_matrix, &translation_vector);
+  if (once_only) _debugprintf("Set XFORM translation");
 
   //
   // TODO(jerry):
@@ -385,42 +407,66 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   //
   gte_SetRotMatrix(&xform_matrix);
   gte_SetTransMatrix(&xform_matrix);
+  if (once_only) _debugprintf("Set GTE matrices");
 
   for (i = 0; i < mesh->vertex_count; i+=3) {
     triangle = _alloc_primitive(sizeof(*triangle));
     setPolyG3(triangle);
 
-    //
-    // TODO: insert into packet
-    //
-    setRGB0(triangle, 127, 127, 127);
+    setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
+    setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
+    setRGB2(triangle, mesh->colors[i+2].vx, mesh->colors[i+2].vy, mesh->colors[i+2].vz);
+
+    if (once_only) _debugprintf("Init primitive");
 
     gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
-
     gte_rtpt();
     gte_nclip();
     gte_stopz(&z);
 
+    if (once_only) _debugprintf("Load into GTE, perform GTE XFORM and clip");
+
+#if 0
     if (z < 0) {
+      if (once_only) _debugprintf("Backface culled");
       continue;
     }
+#endif
 
     gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
+    if (once_only) _debugprintf("Store XFORMed coordinates for triangle");
+    if (once_only) _debugprintf("%d, %d", triangle->x0, triangle->y0);
+    if (once_only) _debugprintf("%d, %d", triangle->x1, triangle->y1);
+    if (once_only) _debugprintf("%d, %d", triangle->x2, triangle->y2);
 
     gte_avsz3();
     gte_stotz(&z);
+    if (once_only)
+      _debugprintf("GTE calculate AVG Z: %d", z);
 
     if (R_triangle_clip(&triangle, z)) {
+      if (once_only)
+	_debugprintf("Z clipped");
       continue;
     }
 
     gte_ldrgb(&triangle->r0);
     gte_ldv3(&mesh->normals[i], &mesh->normals[i+1], &mesh->normals[i+2]);
     gte_ncs();
+    if (once_only)
+      _debugprintf("Do GTE lighting / normal calc");
 
     gte_strgb(&triangle->r0);
+    if (once_only)
+      _debugprintf("GTE store");
 
     _sort_primitive(z, triangle);
+    if (once_only)
+      _debugprintf("Sort final primitve.");
+  }
+
+  if (once_only) {
+    once_only = 0; 
   }
 }
 
