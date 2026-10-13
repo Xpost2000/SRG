@@ -81,17 +81,17 @@ struct Render_Command {
 //
 // Pushing rendering commands
 //
-void render_push_mesh(Render_Command_Mesh mesh);
+void R_render_push_mesh(Render_Command_Mesh mesh);
 
 //
 // Clearing rendering command buffer for new commands
 //
-void render_new_frame(void);
+void R_render_new_frame(void);
 
 //
 // Ending renderer frame and presenting / sorting current primitives.
 //
-void render_end_frame(void);
+void R_render_end_frame(void);
 
 //
 // Older Lower Level Primitives
