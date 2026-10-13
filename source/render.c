@@ -386,21 +386,40 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   if (once_only) _debugprintf("Set XFORM translation");
 
   //
-  // TODO(jerry):
+  // NOTE(jerry):
   //
-  // Can be optimized further, since I'm using the same matrix
-  // and therefore I actually already know I've already loaded
-  // in the matrix once.
+  // Manually inlined and reordered load/use/stores to
+  // try and get slightly better pipeline throughput
   //
-  // These macros reload the temporary registers when it's
-  // not necessary, and since it's inlined-assembler it can't be optimized
-  // unless it's done by hand :)
-  //
-  // Also there's a lot of NOPs, and I'm pretty sure it's possible to use
-  // the cycles in between the nops for more stuff with pipelining.
-  //
+
+#if 0
   gte_SetRotMatrix(&xform_matrix);
   gte_SetTransMatrix(&xform_matrix);
+#else
+  __asm__ volatile (
+	"lw	$t0, 0( %0 );"
+	"lw	$t1, 4( %0 );"
+
+	"ctc2	$t0, $0;"
+	"lw	$t3, 20( %0 );"
+	"ctc2	$t1, $1;"
+	"lw	$t4, 24( %0 );"
+	"ctc2	$t3, $5;"
+	"lw	$t0, 8( %0 );"
+	"ctc2	$t4, $6;"
+	"lw	$t1, 12( %0 );"
+	"ctc2	$t0, $2;"
+	"lhu	$t2, 16( %0 );"
+	"ctc2	$t1, $3;"
+	"lw	$t5, 28( %0 );"
+	"ctc2	$t2, $4;"
+	"ctc2	$t5, $7;"
+    :
+    : "r" (&xform_matrix)
+    : "$t2", "$t5"
+  );
+#endif
+
   if (once_only) _debugprintf("Set GTE matrices");
 
   for (i = 0; i < mesh->vertex_count; i+=3) {
