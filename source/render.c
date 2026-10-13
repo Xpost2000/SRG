@@ -356,6 +356,7 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   int          z;
 
   MATRIX  xform_matrix;
+  MATRIX  local_light_matrix;
   SVECTOR scale_vector;
   SVECTOR rotation_vector;
   VECTOR  translation_vector;
@@ -376,6 +377,8 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   RotMatrix(&rotation_vector, &xform_matrix);
   TransMatrix(&xform_matrix, &translation_vector);
 
+  MulMatrix0(&light_mtx, &xform_matrix, &local_light_matrix);
+
   //
   // NOTE(jerry):
   //
@@ -383,33 +386,32 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   // try and get slightly better pipeline throughput
   //
 
-#if 0
+  gte_SetLightMatrix(&local_light_matrix);
   gte_SetRotMatrix(&xform_matrix);
   gte_SetTransMatrix(&xform_matrix);
-#else
-  __asm__ volatile (
-	"lw	$t0, 0( %0 );"
-	"lw	$t1, 4( %0 );"
 
-	"ctc2	$t0, $0;"
-	"lw	$t3, 20( %0 );"
-	"ctc2	$t1, $1;"
-	"lw	$t4, 24( %0 );"
-	"ctc2	$t3, $5;"
-	"lw	$t0, 8( %0 );"
-	"ctc2	$t4, $6;"
-	"lw	$t1, 12( %0 );"
-	"ctc2	$t0, $2;"
-	"lhu	$t2, 16( %0 );"
-	"ctc2	$t1, $3;"
-	"lw	$t5, 28( %0 );"
-	"ctc2	$t2, $4;"
-	"ctc2	$t5, $7;"
-    :
-    : "r" (&xform_matrix)
-    : "$t2", "$t5"
-  );
-#endif
+  /* __asm__ volatile ( */
+  /* 	"lw	$t0, 0( %0 );" */
+  /* 	"lw	$t1, 4( %0 );" */
+
+  /* 	"ctc2	$t0, $0;" */
+  /* 	"lw	$t3, 20( %0 );" */
+  /* 	"ctc2	$t1, $1;" */
+  /* 	"lw	$t4, 24( %0 );" */
+  /* 	"ctc2	$t3, $5;" */
+  /* 	"lw	$t0, 8( %0 );" */
+  /* 	"ctc2	$t4, $6;" */
+  /* 	"lw	$t1, 12( %0 );" */
+  /* 	"ctc2	$t0, $2;" */
+  /* 	"lhu	$t2, 16( %0 );" */
+  /* 	"ctc2	$t1, $3;" */
+  /* 	"lw	$t5, 28( %0 );" */
+  /* 	"ctc2	$t2, $4;" */
+  /* 	"ctc2	$t5, $7;" */
+  /*   : */
+  /*   : "r" (&xform_matrix) */
+  /*   : "$t2", "$t5" */
+  /* ); */
 
   for (i = 0; i < mesh->vertex_count; i+=3) {
     triangle = _alloc_primitive(sizeof(*triangle));
@@ -417,7 +419,6 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 
     gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
 
-#if 0
     // NOTE(jerry):
     // maybe would've been better to interleave with ldv3?
     setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
@@ -427,7 +428,6 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     gte_rtpt();
     gte_nclip();
     gte_stopz(&z);
-#else
     //
     // NOTE(jerry):
     // The last 3 macros have a bunch of NOPs, which I can fill up with word loads
@@ -435,39 +435,38 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     //
     // Might as well use that waiting time...
     //
-  __asm__ volatile (
-    "lhu $t0, 0(%0);"
-    "lhu $t1, 2(%0);"
-    "lhu $t2, 4(%0);"
+  /* __asm__ volatile ( */
+  /*   "lhu $t0, 0(%0);" */
+  /*   "lhu $t1, 2(%0);" */
+  /*   "lhu $t2, 4(%0);" */
 
-    "lhu $t3, 0(%1);"
-    "lhu $t4, 2(%1);"
-    "lhu $t5, 4(%1);"
+  /*   "lhu $t3, 0(%1);" */
+  /*   "lhu $t4, 2(%1);" */
+  /*   "lhu $t5, 4(%1);" */
 
-    "sb $t0, 4(%4);"
-    "sb $t1, 5(%4);"
-    "sb $t2, 6(%4);"
-    "cop2 0x0280030;"
+  /*   "sb $t0, 4(%4);" */
+  /*   "sb $t1, 5(%4);" */
+  /*   "sb $t2, 6(%4);" */
+  /*   "cop2 0x0280030;" */
 
-    "sb $t6, 20(%4);"
-    "sb $t7, 21(%4);"
-    "sb $t8, 22(%4);"
-    "cop2 0x01400006;"
+  /*   "sb $t6, 20(%4);" */
+  /*   "sb $t7, 21(%4);" */
+  /*   "sb $t8, 22(%4);" */
+  /*   "cop2 0x01400006;" */
 
-    "lhu $t6, 0(%2);"
-    "lhu $t7, 2(%2);"
-    "lhu $t8, 4(%2);"
-    "swc2 $24, 0(%3)"
+  /*   "lhu $t6, 0(%2);" */
+  /*   "lhu $t7, 2(%2);" */
+  /*   "lhu $t8, 4(%2);" */
+  /*   "swc2 $24, 0(%3)" */
 
-    "sb $t3, 12(%4);"
-    "sb $t4, 13(%4);"
-    "sb $t5, 14(%4);"
+  /*   "sb $t3, 12(%4);" */
+  /*   "sb $t4, 13(%4);" */
+  /*   "sb $t5, 14(%4);" */
 
-    :
-    : "r" (&mesh->colors[i]), "r" (&mesh->colors[i+1]), "r" (&mesh->colors[i+2]), "r" (&z), "r" (triangle)
-    : "memory", "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$t8"
-  );
-#endif
+  /*   : */
+  /*   : "r" (&mesh->colors[i]), "r" (&mesh->colors[i+1]), "r" (&mesh->colors[i+2]), "r" (&z), "r" (triangle) */
+  /*   : "memory", "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$t8" */
+  /* ); */
 
     if (z < 0) {
       continue;
