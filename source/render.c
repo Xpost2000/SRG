@@ -267,7 +267,35 @@ void R_render_push_mesh(Render_Command_Mesh mesh)
 
 static void R_render_command_present_mesh(Render_Command_Mesh* mesh)
 {
-  MATRIX xform_matrix;
+  MATRIX  xform_matrix;
+  SVECTOR scale_vector;
+  SVECTOR rotation_vector;
+  SVECTOR translation_vector;
+
+  scale_vector	     = mesh->scale;
+  rotation_vector    = mesh->rotation;
+  translation_vector = mesh->position;
+
+  translation_vector.vx += -cam_pos.vx >> 12;
+  translation_vector.vy += -cam_pos.vy >> 12;
+  translation_vector.vz += -cam_pos.vz >> 12;
+
+  RotMatrix(&rotation_vector, &xform_matrix);
+  TransMatrix(&xform_matrix, &translation_vector);
+
+  //
+  // TODO(jerry):
+  //
+  // Can be optimized further, since I'm using the same matrix
+  // and therefore I actually already know I've already loaded
+  // in the matrix once.
+  //
+  // These macros reload the temporary registers when it's
+  // not necessary, and since it's inlined-assembler it can't be optimized
+  // unless it's done by hand :)
+  //
+  gte_SetRotMatrix(&xform_matrix);
+  gte_SetTransMatrix(&xform_matrix);
 }
 
 void R_render_end_frame(void)
