@@ -686,13 +686,10 @@ int main(int argc, const char **argv)
 
   render_initialize();
   cd_start();
-#if 0
   memory_card_initialize();
-#endif
   input_pad_initialize();
   input_pad_start();
 
-#if 0
   //
   // The memory card header needs a 16x16 4bpp icon; keep loading it off the
   // disc as before.
@@ -775,7 +772,6 @@ int main(int argc, const char **argv)
       printf("[MAIN] font file not found on disc\n");
     }
   }
-#endif
 
   scene_reset_box(&scene);
   settings_load(&scene);
@@ -807,9 +803,9 @@ int main(int argc, const char **argv)
     // Calling input_pad_frame() right before scene_update() instead would
     // make snapshot and current identical, and no tap would ever register.
     //
-    scene_update(&scene);
     R_render_new_frame();
-    /* scene_draw(&scene); */
+    scene_update(&scene);
+    scene_draw(&scene);
     // draw another box!
     {
       static int e = 0;
