@@ -373,17 +373,8 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   translation_vector.vy += -cam_pos.vy >> 12;
   translation_vector.vz += -cam_pos.vz >> 12;
 
-  if (once_only)
-    _debugprintf("init XFORM with camera pos: %d, %d, %d",
-		 translation_vector.vx,
-		 translation_vector.vy,
-		 translation_vector.vz);
-
   RotMatrix(&rotation_vector, &xform_matrix);
-  if (once_only) _debugprintf("Set XFORM rotation");
-
   TransMatrix(&xform_matrix, &translation_vector);
-  if (once_only) _debugprintf("Set XFORM translation");
 
   //
   // NOTE(jerry):
@@ -420,60 +411,82 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   );
 #endif
 
-  if (once_only) _debugprintf("Set GTE matrices");
-
   for (i = 0; i < mesh->vertex_count; i+=3) {
     triangle = _alloc_primitive(sizeof(*triangle));
     setPolyG3(triangle);
 
+    gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
+
+#if 0
+    // NOTE(jerry):
+    // maybe would've been better to interleave with ldv3?
     setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
     setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
     setRGB2(triangle, mesh->colors[i+2].vx, mesh->colors[i+2].vy, mesh->colors[i+2].vz);
 
-    if (once_only) _debugprintf("Init primitive");
-
-    gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
     gte_rtpt();
     gte_nclip();
     gte_stopz(&z);
+#else
+    //
+    // NOTE(jerry):
+    // The last 3 macros have a bunch of NOPs, which I can fill up with word loads
+    // for the colors
+    //
+    // Might as well use that waiting time...
+    //
+  __asm__ volatile (
+    "lhu $t0, 0(%0);"
+    "lhu $t1, 2(%0);"
+    "lhu $t2, 4(%0);"
 
-    if (once_only) _debugprintf("Load into GTE, perform GTE XFORM and clip");
+    "lhu $t3, 0(%1);"
+    "lhu $t4, 2(%1);"
+    "lhu $t5, 4(%1);"
+
+    "sb $t0, 4(%4);"
+    "sb $t1, 5(%4);"
+    "sb $t2, 6(%4);"
+    "cop2 0x0280030;"
+
+    "sb $t6, 20(%4);"
+    "sb $t7, 21(%4);"
+    "sb $t8, 22(%4);"
+    "cop2 0x01400006;"
+
+    "lhu $t6, 0(%2);"
+    "lhu $t7, 2(%2);"
+    "lhu $t8, 4(%2);"
+    "swc2 $24, 0(%3)"
+
+    "sb $t3, 12(%4);"
+    "sb $t4, 13(%4);"
+    "sb $t5, 14(%4);"
+
+    :
+    : "r" (&mesh->colors[i]), "r" (&mesh->colors[i+1]), "r" (&mesh->colors[i+2]), "r" (&z), "r" (triangle)
+    : "memory", "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$t8"
+  );
+#endif
 
     if (z < 0) {
-      if (once_only) _debugprintf("Backface culled");
       continue;
     }
 
     gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
-    if (once_only) _debugprintf("Store XFORMed coordinates for triangle");
-    if (once_only) _debugprintf("%d, %d", triangle->x0, triangle->y0);
-    if (once_only) _debugprintf("%d, %d", triangle->x1, triangle->y1);
-    if (once_only) _debugprintf("%d, %d", triangle->x2, triangle->y2);
-
     gte_avsz3();
     gte_stotz(&z);
-    if (once_only)
-      _debugprintf("GTE calculate AVG Z: %d", z);
 
     if (R_triangle_clip(&triangle, z)) {
-      if (once_only)
-	_debugprintf("Z clipped");
       continue;
     }
 
     gte_ldrgb(&triangle->r0);
     gte_ldv3(&mesh->normals[i], &mesh->normals[i+1], &mesh->normals[i+2]);
     gte_ncs();
-    if (once_only)
-      _debugprintf("Do GTE lighting / normal calc");
-
     gte_strgb(&triangle->r0);
-    if (once_only)
-      _debugprintf("GTE store");
 
     _sort_primitive(z, triangle);
-    if (once_only)
-      _debugprintf("Sort final primitve.");
   }
 
   if (once_only) {
