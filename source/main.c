@@ -158,6 +158,8 @@ SVECTOR cube_norms[] = {
   { 0, 4096, 0, 0 },
 };
 
+Render_Mesh g_testcube;
+
 //
 // TEST END
 //
@@ -700,10 +702,13 @@ int main(int argc, const char **argv)
 
   render_initialize();
   cd_start();
+#if 0
   memory_card_initialize();
+#endif
   input_pad_initialize();
   input_pad_start();
 
+#if 0
   //
   // The memory card header needs a 16x16 4bpp icon; keep loading it off the
   // disc as before.
@@ -786,12 +791,20 @@ int main(int argc, const char **argv)
       printf("[MAIN] font file not found on disc\n");
     }
   }
+#endif
 
   scene_reset_box(&scene);
   settings_load(&scene);
   scene_enter_gameplay(&scene);
 
   printf("Hello PSX\n");
+
+  g_testcube.vertices = cube_verts;
+  g_testcube.normals = cube_norms;
+  g_testcube.colors = cube_colors;
+  g_testcube.vertex_count = array_count(cube_verts);
+  _debugprintf("test mesh has: %d vertices", g_testcube.vertex_count);
+
 
   for (;;) {
     //
@@ -811,8 +824,18 @@ int main(int argc, const char **argv)
     // make snapshot and current identical, and no tap would ever register.
     //
     scene_update(&scene);
-    scene_draw(&scene);
     R_render_new_frame();
+    /* scene_draw(&scene); */
+    // draw another box!
+    {
+      R_render_push_mesh((Render_Command_Mesh) {
+	.position = { 0, 0, 0 },
+	.scale = { ONE, ONE, ONE },
+	.rotation = { 0, 0, 0 },
+	.mesh = &g_testcube
+      });
+    }
+
     input_pad_frame();
     R_render_end_frame();
     render_end_frame();

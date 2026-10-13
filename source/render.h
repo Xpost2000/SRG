@@ -56,6 +56,11 @@ struct Render_Mesh {
   // If they are present, must be the same count as vertices
   //
   SVECTOR* normals;
+
+  //
+  // NOTE(jerry):
+  // unused.
+  //
   SVECTOR* colors;
 };
 

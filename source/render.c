@@ -175,7 +175,8 @@ void render_initialize(void)
   // temp camera setup
   cam_pos.vx = 0;
   cam_pos.vy = 0;
-  cam_pos.vz = ONE * 100;
+  /* cam_pos.vz = ONE * 100; */
+  cam_pos.vz = 0;
 }
 
 //
@@ -354,9 +355,8 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   SVECTOR rotation_vector;
   SVECTOR translation_vector;
 
-  mesh = &mesh_command->mesh;
-
-  assert(mesh->vertex_count % 3 && "[RENDER] The engine only supports triangles (non-indexed for now :( ).");
+  mesh = mesh_command->mesh;
+  assert(((mesh->vertex_count % 3) == 0) && "[RENDER] The engine only supports triangles (non-indexed for now :( )).");
 
   scale_vector	     = mesh_command->scale;
   rotation_vector    = mesh_command->rotation;
