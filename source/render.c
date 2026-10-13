@@ -2,10 +2,7 @@
 
 #include <psxgpu.h>
 
-//
-// Size of the buffer GPU commands and primitives are written to each frame.
-// If the program asserts in _new_primitive, increase this.
-//
+#define RENDER_OT_LENGTH          (128)
 #define RENDER_PACKET_BUFFER_SIZE (32768)
 
 //
