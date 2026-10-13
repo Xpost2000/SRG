@@ -360,24 +360,20 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   MATRIX  xform_matrix;
   SVECTOR scale_vector;
   SVECTOR rotation_vector;
-  SVECTOR translation_vector;
+  VECTOR  translation_vector;
 
   mesh = mesh_command->mesh;
   assert(((mesh->vertex_count % 3) == 0) && "[RENDER] The engine only supports triangles (non-indexed for now :( )).");
 
   scale_vector	     = mesh_command->scale;
   rotation_vector    = mesh_command->rotation;
-  translation_vector = mesh_command->position;
+  translation_vector.vx = mesh_command->position.vx;
+  translation_vector.vy = mesh_command->position.vy;
+  translation_vector.vz = mesh_command->position.vz;
 
-  /* translation_vector.vx += -cam_pos.vx >> 12; */
-  /* translation_vector.vy += -cam_pos.vy >> 12; */
-  /* translation_vector.vz += -cam_pos.vz >> 12; */
-  static int xx = 0;
-  static int xy = 0;
-  static int xz = 0;
-  translation_vector.vx += xx;
-  translation_vector.vy += xy;
-  translation_vector.vz += xz;
+  translation_vector.vx += -cam_pos.vx >> 12;
+  translation_vector.vy += -cam_pos.vy >> 12;
+  translation_vector.vz += -cam_pos.vz >> 12;
 
   if (once_only)
     _debugprintf("init XFORM with camera pos: %d, %d, %d",
@@ -426,12 +422,10 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 
     if (once_only) _debugprintf("Load into GTE, perform GTE XFORM and clip");
 
-#if 0
     if (z < 0) {
       if (once_only) _debugprintf("Backface culled");
       continue;
     }
-#endif
 
     gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
     if (once_only) _debugprintf("Store XFORMed coordinates for triangle");
