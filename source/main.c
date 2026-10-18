@@ -28,6 +28,7 @@
 //
 #include <psxgpu.h>
 
+static int d = 0;
 
 //
 // TEST START
@@ -35,115 +36,115 @@
 #define CUBE_VERTS 36
 
 SVECTOR cube_verts[CUBE_VERTS] = {
-    // -Z face
-    { -100, -100, -100, 0 },
-    {  100, -100, -100, 0 },
-    { -100,  100, -100, 0 },
+  // -Z face
+  { -100, -100, -100, 0 },
+  {  100, -100, -100, 0 },
+  { -100,  100, -100, 0 },
 
-    {  100, -100, -100, 0 },
-    {  100,  100, -100, 0 },
-    { -100,  100, -100, 0 },
+  {  100, -100, -100, 0 },
+  {  100,  100, -100, 0 },
+  { -100,  100, -100, 0 },
 
-    // +Z face
-    {  100, -100,  100, 0 },
-    { -100, -100,  100, 0 },
-    {  100,  100,  100, 0 },
+  // +Z face
+  {  100, -100,  100, 0 },
+  { -100, -100,  100, 0 },
+  {  100,  100,  100, 0 },
 
-    { -100, -100,  100, 0 },
-    { -100,  100,  100, 0 },
-    {  100,  100,  100, 0 },
+  { -100, -100,  100, 0 },
+  { -100,  100,  100, 0 },
+  {  100,  100,  100, 0 },
 
-    // -Y face
-    { -100, -100,  100, 0 },
-    {  100, -100,  100, 0 },
-    { -100, -100, -100, 0 },
+  // -Y face
+  { -100, -100,  100, 0 },
+  {  100, -100,  100, 0 },
+  { -100, -100, -100, 0 },
 
-    {  100, -100,  100, 0 },
-    {  100, -100, -100, 0 },
-    { -100, -100, -100, 0 },
+  {  100, -100,  100, 0 },
+  {  100, -100, -100, 0 },
+  { -100, -100, -100, 0 },
 
-    // +Y face
-    {  100,  100,  100, 0 },
-    { -100,  100,  100, 0 },
-    {  100,  100, -100, 0 },
+  // +Y face
+  {  100,  100,  100, 0 },
+  { -100,  100,  100, 0 },
+  {  100,  100, -100, 0 },
 
-    { -100,  100,  100, 0 },
-    { -100,  100, -100, 0 },
-    {  100,  100, -100, 0 },
+  { -100,  100,  100, 0 },
+  { -100,  100, -100, 0 },
+  {  100,  100, -100, 0 },
 
-    // -X face
-    { -100, -100, -100, 0 },
-    { -100,  100, -100, 0 },
-    { -100, -100,  100, 0 },
+  // -X face
+  { -100, -100, -100, 0 },
+  { -100,  100, -100, 0 },
+  { -100, -100,  100, 0 },
 
-    { -100, -100,  100, 0 },
-    { -100,  100, -100, 0 },
-    { -100,  100,  100, 0 },
+  { -100, -100,  100, 0 },
+  { -100,  100, -100, 0 },
+  { -100,  100,  100, 0 },
 
-    // +X face
-    {  100,  100, -100, 0 },
-    {  100, -100, -100, 0 },
-    {  100,  100,  100, 0 },
+  // +X face
+  {  100,  100, -100, 0 },
+  {  100, -100, -100, 0 },
+  {  100,  100,  100, 0 },
 
-    {  100, -100, -100, 0 },
-    {  100, -100,  100, 0 },
-    {  100,  100,  100, 0 },
+  {  100, -100, -100, 0 },
+  {  100, -100,  100, 0 },
+  {  100,  100,  100, 0 },
 };
 
 SVECTOR cube_norms[CUBE_VERTS] = {
-    // -Z face
-    { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 },
-    { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 },
+  // -Z face
+  { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 },
+  { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 },
 
-    // +Z face
-    { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 },
-    { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 },
+  // +Z face
+  { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 },
+  { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 },
 
-    // -Y face
-    { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 },
-    { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 },
+  // -Y face
+  { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 },
+  { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 },
 
-    // +Y face
-    { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 },
-    { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 },
+  // +Y face
+  { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 },
+  { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 },
 
-    // -X face
-    { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 },
-    { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 },
+  // -X face
+  { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 },
+  { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 },
 
-    // +X face
-    { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 },
-    { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 },
+  // +X face
+  { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 },
+  { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 },
 };
 
 #if 0
 SVECTOR cube_colors[CUBE_VERTS] = {
-    // -Z face
-    { 255, 0, 0, 0 }, { 255, 0, 0, 0 }, { 255, 0, 0, 0 },
-    { 255, 0, 0, 0 }, { 255, 0, 0, 0 }, { 255, 0, 0, 0 },
+  // -Z face
+  { 255, 0, 0, 0 }, { 255, 0, 0, 0 }, { 255, 0, 0, 0 },
+  { 255, 0, 0, 0 }, { 255, 0, 0, 0 }, { 255, 0, 0, 0 },
 
-    // +Z face
-    { 0, 255, 0, 0 }, { 0, 255, 0, 0 }, { 0, 255, 0, 0 },
-    { 0, 255, 0, 0 }, { 0, 255, 0, 0 }, { 0, 255, 0, 0 },
+  // +Z face
+  { 0, 255, 0, 0 }, { 0, 255, 0, 0 }, { 0, 255, 0, 0 },
+  { 0, 255, 0, 0 }, { 0, 255, 0, 0 }, { 0, 255, 0, 0 },
 
-    // -Y face
-    { 0, 0, 255, 0 }, { 0, 0, 255, 0 }, { 0, 0, 255, 0 },
-    { 0, 0, 255, 0 }, { 0, 0, 255, 0 }, { 0, 0, 255, 0 },
+  // -Y face
+  { 0, 0, 255, 0 }, { 0, 0, 255, 0 }, { 0, 0, 255, 0 },
+  { 0, 0, 255, 0 }, { 0, 0, 255, 0 }, { 0, 0, 255, 0 },
 
-    // +Y face
-    { 255, 255, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 0, 0 },
-    { 255, 255, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 0, 0 },
+  // +Y face
+  { 255, 255, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 0, 0 },
+  { 255, 255, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 0, 0 },
 
-    // -X face
-    { 255, 0, 255, 0 }, { 255, 0, 255, 0 }, { 255, 0, 255, 0 },
-    { 255, 0, 255, 0 }, { 255, 0, 255, 0 }, { 255, 0, 255, 0 },
+  // -X face
+  { 255, 0, 255, 0 }, { 255, 0, 255, 0 }, { 255, 0, 255, 0 },
+  { 255, 0, 255, 0 }, { 255, 0, 255, 0 }, { 255, 0, 255, 0 },
 
-    // +X face
-    { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
-    { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
+  // +X face
+  { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
+  { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
 };
 #else
-SVECTOR cube_colors[CUBE_VERTS] = {
+  SVECTOR cube_colors[CUBE_VERTS] = {
     // -Z face
     { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
     { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
@@ -167,7 +168,7 @@ SVECTOR cube_colors[CUBE_VERTS] = {
     // +X face
     { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
     { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-};
+  };
 #endif
 
 Render_Mesh g_testcube;
@@ -435,6 +436,7 @@ static void scene_update_gameplay(Test_Scene* scene)
   if (input_action_held(P1_PAD, INPUT_ACTION_GROW))   target_size = BOX_SIZE_LARGE;
   if (input_action_held(P1_PAD, INPUT_ACTION_SHRINK)) target_size = BOX_SIZE_SMALL;
 
+  d += dx * 4;
   scene->box.x += dx * speed;
   scene->box.y += dy * speed;
 
@@ -493,20 +495,21 @@ static void scene_update_menu(Test_Scene* scene)
   }
   if (on_layout_item && input_action_pressed(P1_PAD, INPUT_ACTION_UI_RIGHT)) {
     settings_cycle_schema(scene, scene->menu_cursor, +1);
+    
   }
 
   if (input_action_pressed(P1_PAD, INPUT_ACTION_UI_CONFIRM)) {
     switch (scene->menu_cursor) {
-      case MENU_ITEM_P1_SCHEMA:
-      case MENU_ITEM_P2_SCHEMA: {
-        settings_cycle_schema(scene, scene->menu_cursor, +1);
-      } break;
-      case MENU_ITEM_SAVE: {
-        settings_save(scene);
-      } break;
-      case MENU_ITEM_LOAD: {
-        settings_load(scene);
-      } break;
+    case MENU_ITEM_P1_SCHEMA:
+    case MENU_ITEM_P2_SCHEMA: {
+      settings_cycle_schema(scene, scene->menu_cursor, +1);
+    } break;
+    case MENU_ITEM_SAVE: {
+      settings_save(scene);
+    } break;
+    case MENU_ITEM_LOAD: {
+      settings_load(scene);
+    } break;
     }
   }
 
@@ -519,12 +522,12 @@ static void scene_update_menu(Test_Scene* scene)
 static void scene_update(Test_Scene* scene)
 {
   switch (scene->mode) {
-    case SCENE_MODE_GAMEPLAY: {
-      scene_update_gameplay(scene);
-    } break;
-    case SCENE_MODE_MENU: {
-      scene_update_menu(scene);
-    } break;
+  case SCENE_MODE_GAMEPLAY: {
+    scene_update_gameplay(scene);
+  } break;
+  case SCENE_MODE_MENU: {
+    scene_update_menu(scene);
+  } break;
   }
 }
 
@@ -757,7 +760,7 @@ int main(int argc, const char **argv)
 	  .w = g_font1.tim.image.width,
 	  .h = g_font1.tim.image.height,
 	},
-	tim.paddr);
+		  tim.paddr);
 	LoadImage(&(RECT) {
           .x = 0, 480,	
 	  .w = g_font1.tim.clut.width,
@@ -790,7 +793,7 @@ int main(int argc, const char **argv)
 	  .w = g_font2.tim.image.width,
 	  .h = g_font2.tim.image.height,
 	},
-	tim.paddr);
+		  tim.paddr);
 	LoadImage(&(RECT) {
           .x = 0, 481,	
 	  .w = g_font2.tim.clut.width,
@@ -895,12 +898,11 @@ int main(int argc, const char **argv)
 #if 1
     {
       static int e = 0;
-      static int d = 0;
       R_render_push_mesh((Render_Command_Mesh) {
-	.position = { isin(d += (4096/120)) * 200, 0, 0 },
+	.position = { isin(e += (4096/120)) * 100, 0, 0 },
 	/* .position = { ONE * 200, 0, 0 }, */
 	.scale = { ONE, ONE, ONE },
-	.rotation = { d/2, e+=4096/120, 1024*3 },
+	.rotation = { 1024, 0, d % 4096 },
 	.mesh = &g_m1
       });
 

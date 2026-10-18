@@ -201,6 +201,12 @@ void* _alloc_primitive(size_t size)
   return (void*) primitive;
 }
 
+void _dealloc(size_t size)
+{
+  g_next_packet -= size;
+  g_used	-= size;
+}
+
 //
 // Carve `size` bytes out of the active packet buffer and link the new
 // primitive into the OT at depth z.
@@ -360,6 +366,7 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   POLY_G3*     triangle;  
   int          i;
   int          z;
+  uint32_t     flg;
 
   MATRIX  xform_matrix;
   MATRIX  local_light_matrix;
@@ -386,7 +393,6 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   //
   RotMatrix(&rotation_vector, &xform_matrix);
   TransMatrix(&xform_matrix, &translation_vector);
-
   MulMatrix0(&light_mtx, &xform_matrix, &local_light_matrix);
 
   //
@@ -403,34 +409,36 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   gte_SetTransMatrix(&xform_matrix);
 
   for (i = 0; i < mesh->vertex_count; i+=3) {
-    triangle = _alloc_primitive(sizeof(*triangle));
-    setPolyG3(triangle);
-
     gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
-
     gte_rtpt_b();
-    gte_nclip_b();
+    gte_stflg(&flg);
 
-    gte_stflg(&z);
-    if (z & (1u << 31)) {
+    if ((flg & (1u << 17)) ||
+	(flg & (1u << 31))) {
       continue;
     }
 
-    gte_stopz(&z);
+    gte_nclip_b();
 
+    gte_stopz(&z);
     if (z <= 0) {
       continue;
     }
 
-    gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
     gte_avsz3_b();
     gte_stotz(&z);
 
     z >>= 2;
 
+    triangle = _alloc_primitive(sizeof(*triangle));
+    setPolyG3(triangle);
+    gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
+
     if (R_triangle_clip(triangle, z)) {
+      _dealloc(sizeof(*triangle));
       continue;
     }
+
 
     setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
     setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
