@@ -49,6 +49,8 @@ typedef struct Render_Buffer {
 static Render_Buffer g_buffers[2];
 static int           g_active_buffer;
 static uint8_t*      g_next_packet;
+uint32_t             g_used = 0;
+uint32_t             g_peak_used = 0;
 
 static uint32_t       g_render_command_count = 0; 
 static Render_Command g_render_commands[MAX_RENDER_COMMANDS];
@@ -194,6 +196,7 @@ void* _alloc_primitive(size_t size)
   Render_Buffer* buffer    = &g_buffers[g_active_buffer];
   uint8_t*       primitive = g_next_packet;
   g_next_packet += size;
+  g_used	+= size;
   assert(g_next_packet <= &buffer->packets[RENDER_PACKET_BUFFER_SIZE] && "[RENDER] Out of packet buffer, raise RENDER_PACKET_BUFFER_SIZE.");
   return (void*) primitive;
 }
@@ -266,6 +269,8 @@ void render_end_frame(void)
   //
   g_active_buffer ^= 1;
   g_next_packet    = display_buffer->packets;
+  g_peak_used      = max(g_used, g_peak_used);
+  g_used           = 0;
   ClearOTagR(display_buffer->ordering_table, RENDER_OT_LENGTH);
 }
 

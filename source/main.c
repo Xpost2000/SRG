@@ -686,10 +686,9 @@ static void scene_draw(Test_Scene* scene)
 
   draw_box(scene);
 
-  sprintf(line, "MODE %s  P1 LAYOUT %c  P2 LAYOUT %c",
-          scene->mode == SCENE_MODE_MENU ? "MENU" : "GAME",
-          schema_letter(scene->settings.gameplay_schema[0]),
-          schema_letter(scene->settings.gameplay_schema[1]));
+  extern uint32_t g_peak_used;
+  sprintf(line, "CMDBUFFERUSG: %d",
+	  g_peak_used);
   render_text(8, 8, 0, line);
 
   draw_pad_debug_line(P1_PAD, 20);
@@ -900,9 +899,7 @@ int main(int argc, const char **argv)
 	.position = { isin(d += (4096/120)) * 200, 0, 0 },
 	/* .position = { ONE * 200, 0, 0 }, */
 	.scale = { ONE, ONE, ONE },
-	// 131072 = 360 deg
-	.rotation = { 1024, 0, 1024*3 },
-	/* .rotation = { 0, ONE * 90, 0 }, */
+	.rotation = { d/2, e+=4096/120, 1024*3 },
 	.mesh = &g_m1
       });
 
@@ -910,9 +907,7 @@ int main(int argc, const char **argv)
 	.position = { isin((d) + 2048) * 200, 0, 150 },
 	/* .position = { ONE * 200, 0, 0 }, */
 	.scale = { ONE, ONE, ONE },
-	// 131072 = 360 deg
-	.rotation = { 1024, 0, 1024*3 },
-	/* .rotation = { 0, ONE * 90, 0 }, */
+	.rotation = { 1024+d, d, 1024*3 },
 	.mesh = &g_m2
       });
       e+=4;
