@@ -8,8 +8,8 @@
 //
 #include <inline_c.h>
 
-#define RENDER_OT_LENGTH          (1024)
-#define RENDER_PACKET_BUFFER_SIZE (1024 * 64)
+#define RENDER_OT_LENGTH          (512)
+#define RENDER_PACKET_BUFFER_SIZE (1024 *  256)
 #define MAX_RENDER_COMMANDS       (8192)
 
 typedef enum Clip_Edge_Result Clip_Edge_Result;
@@ -320,10 +320,6 @@ static int R_triangle_clip(POLY_G3* triangle, int avg_z)
     return 1;
   }
 
-#if 1
-  return 0;
-#endif
-
   clip0  = R_point_clip(triangle->x0, triangle->y0);
   clip1  = R_point_clip(triangle->x1, triangle->y1);
   clip2  = R_point_clip(triangle->x2, triangle->y2);
@@ -331,6 +327,10 @@ static int R_triangle_clip(POLY_G3* triangle, int avg_z)
   clip01 = clip0 & clip1;
   clip12 = clip1 & clip2;
   clip20 = clip2 & clip0;
+
+  if (clip0 & clip1 & clip2) {
+    return 1;
+  }
 
   if (clip01 == 0) {
     return 0;
@@ -420,7 +420,9 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     gte_avsz3_b();
     gte_stotz(&z);
 
-    if (R_triangle_clip(&triangle, z)) {
+    z >>= 2;
+
+    if (R_triangle_clip(triangle, z)) {
       continue;
     }
 
