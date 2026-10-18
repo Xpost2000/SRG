@@ -32,6 +32,7 @@
 static int d = -2572;
 static int last_vblank = 0;
 static int vblank_now = 0;
+static int frame_divisor = 0;
 static int intensity = 1;
 
 //
@@ -878,6 +879,7 @@ int main(int argc, const char **argv)
     //
     R_render_new_frame();
     vblank_now = VSync(-1);
+    frame_divisor = vblank_now - last_vblank;
     scene_update(&scene);
     scene_draw(&scene);
     // draw another box!
@@ -917,7 +919,7 @@ int main(int argc, const char **argv)
 	.rotation = { e, 0, 0, 0 },
 	.mesh = &g_testcube
       });
-      e += (4096/120);
+      e += (4096/120) * frame_divisor;
     }
 #endif
 
