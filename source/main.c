@@ -171,6 +171,8 @@ SVECTOR cube_colors[CUBE_VERTS] = {
 #endif
 
 Render_Mesh g_testcube;
+Render_Mesh g_m1;
+Render_Mesh g_m2;
 
 //
 // TEST END
@@ -296,6 +298,9 @@ static Font    g_font2;
 // Just for font testing purposes
 //
 static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
+
+static uint8_t g_meshfile1[2024 * 20]; // they're actually like 30KB but just in case.
+static uint8_t g_meshfile2[2024 * 20];
 
 // ----------------------------------------------------------------------------
 //  Memory card <-> settings
@@ -801,6 +806,59 @@ int main(int argc, const char **argv)
     }
   }
 
+  //
+  // loading mesh files
+  //
+  {
+    CD_File file = cd_file_open("\\RES\\M1.BIN");
+    int nsectors = ((sizeof(g_meshfile1)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
+    if (file.valid) {
+      cd_file_read_sync_uncached(&file, g_meshfile1, nsectors * CD_SECTOR_SIZE);
+
+      //
+      // setup mesh from cd file memory
+      //
+      {
+	uint8_t* cursor = g_meshfile1;
+	g_m1.vertex_count = *((uint16_t*)cursor);
+
+	cursor += 2;
+	g_m1.vertices = (SVECTOR*)cursor;
+
+	cursor += sizeof(SVECTOR) * g_m1.vertex_count;
+	g_m1.normals = (SVECTOR*)cursor;
+      }
+      printf("[MESH] vtxcount=%d\n", g_m1.vertex_count);
+    } else {
+      printf("[MAIN] model file not found on disk\n");
+    }
+  }
+
+  {
+    CD_File file = cd_file_open("\\RES\\M2.BIN");
+    int nsectors = ((sizeof(g_meshfile2)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
+    if (file.valid) {
+      cd_file_read_sync_uncached(&file, g_meshfile2, nsectors * CD_SECTOR_SIZE);
+
+      //
+      // setup mesh from cd file memory
+      //
+      {
+	uint8_t* cursor = g_meshfile2;
+	g_m2.vertex_count = *((uint16_t*)cursor);
+
+	cursor += 2;
+	g_m2.vertices = (SVECTOR*)cursor;
+
+	cursor += sizeof(SVECTOR) * g_m2.vertex_count;
+	g_m2.normals = (SVECTOR*)cursor;
+      }
+      printf("[MESH] vtxcount=%d\n", g_m2.vertex_count);
+    } else {
+      printf("[MAIN] model file not found on disk\n");
+    }
+  }
+
   scene_reset_box(&scene);
   settings_load(&scene);
   scene_enter_gameplay(&scene);
@@ -842,9 +900,20 @@ int main(int argc, const char **argv)
 	.position = { isin(d += (4096/120)) * 200, 0, 0 },
 	/* .position = { ONE * 200, 0, 0 }, */
 	.scale = { ONE, ONE, ONE },
-	/* .rotation = { 0, e, e }, */
-	.rotation = {},
-	.mesh = &g_testcube
+	// 131072 = 360 deg
+	.rotation = { 1024, 0, 1024*3 },
+	/* .rotation = { 0, ONE * 90, 0 }, */
+	.mesh = &g_m1
+      });
+
+      R_render_push_mesh((Render_Command_Mesh) {
+	.position = { isin((d) + 2048) * 200, 0, 150 },
+	/* .position = { ONE * 200, 0, 0 }, */
+	.scale = { ONE, ONE, ONE },
+	// 131072 = 360 deg
+	.rotation = { 1024, 0, 1024*3 },
+	/* .rotation = { 0, ONE * 90, 0 }, */
+	.mesh = &g_m2
       });
       e+=4;
     }

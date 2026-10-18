@@ -9,7 +9,7 @@
 #include <inline_c.h>
 
 #define RENDER_OT_LENGTH          (1024)
-#define RENDER_PACKET_BUFFER_SIZE (32768)
+#define RENDER_PACKET_BUFFER_SIZE (1024 * 64)
 #define MAX_RENDER_COMMANDS       (8192)
 
 typedef enum Clip_Edge_Result Clip_Edge_Result;
@@ -375,6 +375,10 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   translation_vector.vy += -cam_pos.vy >> 12;
   translation_vector.vz += -cam_pos.vz >> 12;
 
+  //
+  // NOTE(jerry):
+  // the fixed point dimensions are 4096 = 360 degrees
+  //
   RotMatrix(&rotation_vector, &xform_matrix);
   TransMatrix(&xform_matrix, &translation_vector);
 
