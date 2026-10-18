@@ -28,7 +28,7 @@
 //
 #include <psxgpu.h>
 
-static int d = 0;
+static int d = -2572;
 
 //
 // TEST START
@@ -117,7 +117,6 @@ SVECTOR cube_norms[CUBE_VERTS] = {
   { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 },
 };
 
-#if 0
 SVECTOR cube_colors[CUBE_VERTS] = {
   // -Z face
   { 255, 0, 0, 0 }, { 255, 0, 0, 0 }, { 255, 0, 0, 0 },
@@ -143,33 +142,6 @@ SVECTOR cube_colors[CUBE_VERTS] = {
   { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
   { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
 };
-#else
-  SVECTOR cube_colors[CUBE_VERTS] = {
-    // -Z face
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-
-    // +Z face
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-
-    // -Y face
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-
-    // +Y face
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-
-    // -X face
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-
-    // +X face
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-    { 255, 255, 255, 255 }, { 255, 255, 255, 255 }, { 255, 255, 255, 255 },
-  };
-#endif
 
 Render_Mesh g_testcube;
 Render_Mesh g_m1;
@@ -300,8 +272,8 @@ static Font    g_font2;
 //
 static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
 
-static uint8_t g_meshfile1[2024 * 20]; // they're actually like 30KB but just in case.
-static uint8_t g_meshfile2[2024 * 20];
+static uint8_t g_meshfile1[2048 * 20]; // they're actually like 30KB but just in case.
+static uint8_t g_meshfile2[2048 * 20];
 
 // ----------------------------------------------------------------------------
 //  Memory card <-> settings
@@ -690,8 +662,8 @@ static void scene_draw(Test_Scene* scene)
   draw_box(scene);
 
   extern uint32_t g_peak_used;
-  sprintf(line, "CMDBUFFERUSG: %d",
-	  g_peak_used);
+  sprintf(line, "CMDBUFFERUSG: %d, ANG: %d",
+	  g_peak_used, d);
   render_text(8, 8, 0, line);
 
   draw_pad_debug_line(P1_PAD, 20);
@@ -808,6 +780,18 @@ int main(int argc, const char **argv)
     }
   }
 
+  scene_reset_box(&scene);
+  settings_load(&scene);
+  scene_enter_gameplay(&scene);
+
+  printf("Hello PSX\n");
+
+  g_testcube.vertices = cube_verts;
+  g_testcube.normals = cube_norms;
+  g_testcube.colors = cube_colors;
+  g_testcube.vertex_count = array_count(cube_verts);
+  _debugprintf("test mesh has: %d vertices", g_testcube.vertex_count);
+
   //
   // loading mesh files
   //
@@ -861,17 +845,6 @@ int main(int argc, const char **argv)
     }
   }
 
-  scene_reset_box(&scene);
-  settings_load(&scene);
-  scene_enter_gameplay(&scene);
-
-  printf("Hello PSX\n");
-
-  g_testcube.vertices = cube_verts;
-  g_testcube.normals = cube_norms;
-  g_testcube.colors = cube_colors;
-  g_testcube.vertex_count = array_count(cube_verts);
-  _debugprintf("test mesh has: %d vertices", g_testcube.vertex_count);
 
 
   for (;;) {
@@ -895,24 +868,16 @@ int main(int argc, const char **argv)
     scene_update(&scene);
     scene_draw(&scene);
     // draw another box!
-#if 1
+#if 0
     {
       static int e = 0;
       R_render_push_mesh((Render_Command_Mesh) {
 	.position = { isin(e += (4096/120)) * 100, 0, 0 },
 	/* .position = { ONE * 200, 0, 0 }, */
 	.scale = { ONE, ONE, ONE },
-	.rotation = { 1024, 0, d % 4096 },
+	.rotation = { 1024, 0, d},
 	.mesh = &g_m1
       });
-
-      /* R_render_push_mesh((Render_Command_Mesh) { */
-      /* 	.position = { isin((d) + 2048) * 200, 0, 150 }, */
-      /* 	/\* .position = { ONE * 200, 0, 0 }, *\/ */
-      /* 	.scale = { ONE, ONE, ONE }, */
-      /* 	.rotation = { 1024+d, d, 1024*3 }, */
-      /* 	.mesh = &g_m2 */
-      /* }); */
       e+=4;
     }
 #else

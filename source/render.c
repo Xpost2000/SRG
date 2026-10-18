@@ -353,8 +353,6 @@ static int R_triangle_clip(POLY_G3* triangle, int avg_z)
   return 1;
 }
 
-static int once_only = 1;
-
 static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 {
   //
@@ -451,10 +449,6 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     gte_strgb3_g3(triangle);
 
     _sort_primitive(z, triangle);
-  }
-
-  if (once_only) {
-    once_only = 0; 
   }
 }
 
