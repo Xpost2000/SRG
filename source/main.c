@@ -82,8 +82,7 @@ enum Menu_Item {
   MENU_ITEM_P2_SCHEMA,
   MENU_ITEM_SAVE,
   MENU_ITEM_LOAD,
-  MENU_ITEM_MUSIC,   // start / fade out the streamed test song
-  MENU_ITEM_CD_TEST, // hammer the drive with blocking loads while music plays
+  MENU_ITEM_MUSIC, // start / fade out the sequenced test song
   MENU_ITEM_COUNT
 };
 
@@ -141,7 +140,7 @@ static const char* const g_action_labels[INPUT_ACTION_COUNT] = {
 };
 
 static const char* const g_menu_labels[MENU_ITEM_COUNT] = {
-  "P1 LAYOUT", "P2 LAYOUT", "SAVE TO CARD", "LOAD FROM CARD", "MUSIC", "CD READ TEST",
+  "P1 LAYOUT", "P2 LAYOUT", "SAVE TO CARD", "LOAD FROM CARD", "MUSIC",
 };
 
 static uint8_t g_iconfile[CD_SECTOR_SIZE]; // memory card icon TIM, one CD sector
@@ -154,15 +153,16 @@ static Font    g_font2;
 static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
 
 //
-// Audio test assets. The blip is a 0.3 s sine from res/audio/blip.wav; the
-// song is res/audio/loop.mp3 streamed off the disc (see audio.h).
+// Audio test songs, both MML text from res/audio (see engine-docs/audio.md).
+// The theme is a four-bar loop, the coin a two-note jingle. The blip is an
+// instrument in the bank, so it needs no handle at all.
 //
-#define MUSIC_TEST_PATH   ("\\AUDIO\\LOOP.VAG")
-#define SFX_TEST_PATH     ("\\AUDIO\\BLIP.VAG")
+#define MUSIC_TEST_PATH   ("\\AUDIO\\THEME.MML")
+#define JINGLE_TEST_PATH  ("\\AUDIO\\COIN.MML")
 #define MUSIC_FADE_FRAMES (30)
-#define SFX_FADE_FRAMES   (12) // a bit shorter than the 0.3 s blip, so the ramp is audible
 
-static Audio_Sfx g_sfx_blip = AUDIO_SFX_INVALID;
+static Audio_Song g_song_theme = AUDIO_SONG_INVALID;
+static Audio_Song g_song_coin  = AUDIO_SONG_INVALID;
 
 // ----------------------------------------------------------------------------
 //  Memory card <-> settings
@@ -235,48 +235,14 @@ static void settings_save(Test_Scene* scene)
 //  Audio test helpers
 // ----------------------------------------------------------------------------
 
-//
-// The thing the streaming design has to survive: a scene doing blocking CD
-// loads while a song plays. Twenty re-reads of a font (a seek plus three
-// sectors each) is a few hundred milliseconds with the drive, well inside the
-// ring's runway. The underrun counter on the status line is the verdict.
-//
-#define CD_TEST_READS (20)
-
-static void cd_read_test(Test_Scene* scene)
-{
-  CD_File font     = cd_file_open("\\RES\\FONT2.SRGFNT");
-  int     nsectors = (sizeof(g_fontfile) + CD_SECTOR_SIZE - 1) / CD_SECTOR_SIZE;
-  int     reads    = 0;
-
-  if (font.valid) {
-    for (int i = 0; i < CD_TEST_READS; ++i) {
-      if (cd_file_read_sync_uncached(&font, g_fontfile, nsectors * CD_SECTOR_SIZE) > 0) {
-        reads++;
-      }
-      //
-      // The one rule for loading while music plays: give the feeder a turn
-      // between files. It will top the ring up if it is low, and the next
-      // blocking read simply waits its turn behind that refill. Twenty seeks
-      // back to back without this drains the ring and the song stutters.
-      //
-      audio_update();
-    }
-  }
-
-  sprintf(scene->status, "CD TEST: %d/%d READS, %d UNDERRUNS", reads, CD_TEST_READS, audio_music_underruns());
-}
-
 static void music_toggle(Test_Scene* scene)
 {
   if (audio_music_is_playing()) {
     audio_music_fade_out(MUSIC_FADE_FRAMES);
     strcpy(scene->status, "MUSIC FADING OUT");
-  } else if (audio_music_play(MUSIC_TEST_PATH, 1)) {
-    audio_music_fade_in(MUSIC_FADE_FRAMES);
-    strcpy(scene->status, "MUSIC STREAMING FROM CD");
   } else {
-    strcpy(scene->status, "MUSIC FAILED TO START");
+    audio_music_play(g_song_theme, 1);
+    strcpy(scene->status, audio_music_is_playing() ? "MUSIC PLAYING FROM RAM" : "MUSIC FAILED TO START");
   }
 }
 
@@ -362,30 +328,30 @@ static void scene_update_gameplay(Test_Scene* scene)
   //
   //
   // Every tap makes a noise so the voice pool can be heard working: mash
-  // these and the blips overlap instead of cutting each other off. COLOR+
-  // fades its blip out and COLOR- fades its in (an octave down, to show
-  // pitch is free), so both fade directions can be heard on an effect.
+  // these and the blips overlap instead of cutting each other off. COLOR-
+  // plays the same instrument an octave down to show pitch is free, and
+  // CLEAR plays the coin jingle, a tiny song on borrowed pool voices.
   //
   if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_NEXT)) {
     scene->box_color_index = (scene->box_color_index + 1) % color_count;
-    audio_sfx_fade_out(audio_sfx_play(g_sfx_blip), SFX_FADE_FRAMES);
+    audio_note_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_PREV)) {
     scene->box_color_index = (scene->box_color_index + color_count - 1) % color_count;
-    audio_sfx_fade_in(audio_sfx_play_ex(g_sfx_blip, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX, AUDIO_PITCH_NORMAL / 2), SFX_FADE_FRAMES);
+    audio_note_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT - 12, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_DROP_MARKER) && scene->marker_count < MARKER_CAPACITY) {
     Vector2* marker = &scene->markers[scene->marker_count++];
     marker->x = scene->box.x + scene->box.w / 2 - MARKER_SIZE / 2;
     marker->y = scene->box.y + scene->box.h / 2 - MARKER_SIZE / 2;
     // panned to where the box is: left edge = left speaker
-    audio_sfx_play_ex(g_sfx_blip,
-                      AUDIO_VOLUME_MAX - (AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH),
-                      AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH,
-                      AUDIO_PITCH_NORMAL);
+    audio_note_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT,
+                    AUDIO_VOLUME_MAX - (AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH),
+                    AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_CLEAR_MARKERS)) {
     scene->marker_count = 0;
+    audio_sfx_play(g_song_coin);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_TOGGLE_OUTLINE)) {
     scene->box_outline ^= 1;
@@ -433,9 +399,6 @@ static void scene_update_menu(Test_Scene* scene)
       } break;
       case MENU_ITEM_MUSIC: {
         music_toggle(scene);
-      } break;
-      case MENU_ITEM_CD_TEST: {
-        cd_read_test(scene);
       } break;
     }
   }
@@ -629,17 +592,7 @@ static void scene_draw(Test_Scene* scene)
 
   render_text(8, 44, 0, scene->status);
 
-  //
-  // Stream health: how full the ring is and whether it has ever run dry.
-  //
-  if (audio_music_is_playing()) {
-    sprintf(line, "MUSIC RING %3d%%  UNDERRUNS %d",
-            (int) (audio_music_buffered_bytes() * 100 / audio_music_ring_bytes()),
-            audio_music_underruns());
-  } else {
-    strcpy(line, "MUSIC OFF  (PAUSE > MUSIC)");
-  }
-  render_text(8, 54, 0, line);
+  render_text(8, 54, 0, audio_music_is_playing() ? "MUSIC ON" : "MUSIC OFF  (PAUSE > MUSIC)");
 
   if (scene->mode == SCENE_MODE_MENU) {
     draw_menu(scene);
@@ -760,10 +713,12 @@ int main(int argc, const char **argv)
   }
 
   //
-  // Sound effects for this scene. One blip, loaded into sound RAM once; it
-  // stays there until audio_sfx_unload_all() on a scene change.
+  // Songs. Parsed once into note events in main RAM; the instruments they
+  // play are already in sound RAM from audio_initialize(). Nothing about
+  // audio touches the disc after this.
   //
-  g_sfx_blip = audio_sfx_load(SFX_TEST_PATH);
+  g_song_theme = audio_song_load(MUSIC_TEST_PATH);
+  g_song_coin  = audio_song_load(JINGLE_TEST_PATH);
 
   scene_reset_box(&scene);
   settings_load(&scene);
@@ -779,8 +734,8 @@ int main(int argc, const char **argv)
     //
     //   scene_update       poll actions: "now" is the packet from the last
     //                      vblank, "last frame" is the snapshot before it
-    //   audio_update       top up the music ring if the drive is idle, step
-    //                      fades; never blocks
+    //   audio_update       step the sequencer: key the notes due this frame,
+    //                      step fades; never blocks
     //   scene_draw         build the frame
     //   input_pad_frame    snapshot the packet we just finished reading and
     //                      bump the held-frame counters
