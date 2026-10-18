@@ -412,7 +412,7 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     gte_nclip_b();
     gte_stopz(&z);
 
-    if (z < 0) {
+    if (z <= 0) {
       continue;
     }
 

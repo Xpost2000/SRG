@@ -892,6 +892,7 @@ int main(int argc, const char **argv)
     scene_update(&scene);
     scene_draw(&scene);
     // draw another box!
+#if 1
     {
       static int e = 0;
       static int d = 0;
@@ -903,15 +904,32 @@ int main(int argc, const char **argv)
 	.mesh = &g_m1
       });
 
-      R_render_push_mesh((Render_Command_Mesh) {
-	.position = { isin((d) + 2048) * 200, 0, 150 },
-	/* .position = { ONE * 200, 0, 0 }, */
-	.scale = { ONE, ONE, ONE },
-	.rotation = { 1024+d, d, 1024*3 },
-	.mesh = &g_m2
-      });
+      /* R_render_push_mesh((Render_Command_Mesh) { */
+      /* 	.position = { isin((d) + 2048) * 200, 0, 150 }, */
+      /* 	/\* .position = { ONE * 200, 0, 0 }, *\/ */
+      /* 	.scale = { ONE, ONE, ONE }, */
+      /* 	.rotation = { 1024+d, d, 1024*3 }, */
+      /* 	.mesh = &g_m2 */
+      /* }); */
       e+=4;
     }
+#else
+    {
+      int i;
+      int j;
+      for (i = 0; i < 3; ++i) {
+	for (j = 0; j < 4; ++j) {
+	  R_render_push_mesh((Render_Command_Mesh) {
+	    .position = { (j * 200 - 240) * 4096, 4096 * 50, 4096 * (40 + 150 * i) },
+	    /* .position = { ONE * 200, 0, 0 }, */
+	    .scale = { ONE, ONE, ONE },
+	    .rotation = { 1024, 0, 1024*3 },
+	    .mesh = &g_m1
+	  });
+	}
+      }
+    }
+#endif
 
     input_pad_frame();
     R_render_end_frame();
