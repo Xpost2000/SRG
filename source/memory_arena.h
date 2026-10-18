@@ -47,33 +47,4 @@ void          memory_arena_reset_bottom(Memory_Arena* arena);
 void          memory_arena_reset_top(Memory_Arena* arena);
 void          memory_arena_reset(Memory_Arena* arena);
 
-//
-// Bump allocator over an address range the CPU cannot (or should not) touch:
-// SPU sound RAM, VRAM, a region of the CD. Memory_Arena can't do this job
-// because it hands back CPU pointers and memsets what it gives out; on the PS1
-// sound RAM and VRAM are only reachable by DMA, so there is nothing to
-// dereference. This only does the bookkeeping and returns addresses.
-//
-//   base                         cursor                     end
-//    +--------+--------+-----------+--------------------------+
-//    | alloc  | alloc  | alloc     |   free                   |
-//    +--------+--------+-----------+--------------------------+
-//
-// No free, only reset: load a scene's worth, throw it all away on exit.
-// memory_bump_push() returns 0 when full. No range we manage starts at
-// address 0 (sound RAM 0 is hardware capture buffers, VRAM 0 is the
-// framebuffer), so 0 is never a valid allocation.
-//
-typedef struct Memory_Bump Memory_Bump;
-
-struct Memory_Bump {
-  uint32_t base;
-  uint32_t end;
-  uint32_t cursor;
-};
-
-void     memory_bump_init(Memory_Bump* bump, uint32_t base, uint32_t end);
-uint32_t memory_bump_push(Memory_Bump* bump, uint32_t size, uint32_t align);
-void     memory_bump_reset(Memory_Bump* bump);
-
 #endif

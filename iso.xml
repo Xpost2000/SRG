@@ -68,9 +68,9 @@ ${PROJECT_SOURCE_DIR}.
       </dir>
       <!--
 	  The instrument bank (.VAG) is generated into the build tree by the
-	  srg_audio_sample rules in CMakeLists.txt (psxavenc output), never
-	  committed. Keep the names in sync with those rules and g_bank_defs
-	  in audio.c. Songs (.MML) are plain text, copied straight from
+	  srg_audio_sample rules in cmake/audio.cmake (psxavenc output), never
+	  committed. Keep the names in sync with those rules and
+	  AUDIO_INSTRUMENTS in audio.h. Songs (.MML) are plain text, copied straight from
 	  res/audio. All of it is read once, at boot.
       -->
       <dir name="AUDIO">
@@ -82,7 +82,6 @@ ${PROJECT_SOURCE_DIR}.
 	<file name="HAT.VAG" type="data" source="${CMAKE_BINARY_DIR}/audio/HAT.VAG"/>
 	<file name="BLIP.VAG" type="data" source="${CMAKE_BINARY_DIR}/audio/BLIP.VAG"/>
 	<file name="THEME.MML" type="data" source="${PROJECT_SOURCE_DIR}/res/audio/theme.mml"/>
-	<file name="COIN.MML" type="data" source="${PROJECT_SOURCE_DIR}/res/audio/coin.mml"/>
       </dir>
       <file name="SYSTEM.CNF"		type="data" source="${PROJECT_SOURCE_DIR}/system.cnf" />
       <file name="GAME.EXE"	type="data" source="game.exe" />

@@ -51,6 +51,15 @@ inline static char* __shorten_path_length(char* original, int depth) {
 // Round x up to a multiple of a. a must be a power of two.
 #define align_up(x, a) (((x) + (a) - 1) & ~((a) - 1))
 
+// Byte-swap a 32-bit word: big-endian file fields (.VAG headers) to the R3000's little-endian.
+static inline uint32_t swap32(uint32_t x)
+{
+  return (x & 0x000000FF) << 24 |
+         (x & 0xFF000000) >> 24 |
+         (x & 0x00FF0000) >> 8  |
+         (x & 0x0000FF00) << 8;
+}
+
 #define memory_zero(c, s) memset(c, 0, s)
 #define memory_zero_fixed(c) memory_zero(c, sizeof(c))
 

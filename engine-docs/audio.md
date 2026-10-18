@@ -9,11 +9,11 @@ reading (how the hardware works, what other PS1 games did) is in
 The sound chip (SPU) has 24 **voices** and its own 512 KB of RAM. A voice plays a compressed
 sample that must already be in that RAM, at any pitch. So we keep a small **instrument bank**
 (the "sound font": piano, bass, lead, kick, snare, hat, blip, about 10 KB), upload it once at
-boot, and never touch it again. **Music and jingles are text**: short MML files listing which
-note to play on which instrument and for how long. They are parsed once at boot into 6-byte
-note events in main RAM, and a sequencer in `audio_update()` keys voices on and off as the
-song plays. **A plain sound effect** is just one note on one instrument. After boot, audio
-never reads the disc.
+boot, and never touch it again. Everything the game hears is a note on a bank instrument.
+**Music is text**: short MML files listing which note to play on which instrument and for how
+long. They are parsed once at boot into 6-byte note events in main RAM, and a sequencer in
+`audio_update()` keys voices on and off as the song plays. **A sound effect** is one note on
+one instrument. After boot, audio never reads the disc.
 
 ```
  res/audio/*.wav ──psxavenc (build)──► run-tree/audio/*.VAG ──mkpsxiso──► disc
@@ -49,20 +49,23 @@ in `system-docs/md/` and psx-spx.
 - **`CdInit()` before `SpuInit()`**, or transfer-complete polling can misfire. `cd_start()`
   runs before `audio_initialize()` for that reason, and the bank load needs the drive anyway.
 
-## The two layers
+## The layers
 
 **`spu.c`** is hardware only: upload bytes to a sound RAM address, key a voice on with
 address, pitch, volume and envelope, key it off. It has no interrupts and no state. Game code
 never includes it.
 
-**`audio.c`** is what the game calls. It holds the bank table, the MML parser, the sequencer
-and the voice map, and it never touches a register.
+**`mml.c`** is the song parser: MML text in, fixed-size note events out. It owns the event
+pool and knows nothing about voices or the SPU. Only `audio.c` includes it.
+
+**`audio.c`** is what the game calls. It holds the bank, the voice map, the sequencer that
+plays parsed songs, and the music fade. It never touches a register.
 
 ## Voices
 
 ```
  voice  0 ..  7   music. Track n of the song plays on voice n, always.
- voice  8 .. 23   effect pool, 16 voices round-robin: audio_note_play() and jingle tracks
+ voice  8 .. 23   effect pool, 16 voices round-robin: audio_sfx_play()
 ```
 
 Music can never be cut off by effects. A burst of more than 16 effects steals the oldest
@@ -129,28 +132,30 @@ mid-song. Add them when a song needs them.
 **Looping:** a looped song restarts every track together once *all* of them have ended. A
 shorter track sits silent until the longest one finishes, so tracks never drift out of time.
 
-**Errors** are logged as `[AUDIO] \AUDIO\THEME.MML:12: note out of range`. The bad token is
+**Errors** are logged as `[MML] \AUDIO\THEME.MML:12: note out of range`. The bad token is
 skipped, so the song still plays.
 
 **Size:** one event is 6 bytes. The test theme (5 tracks, 4 bars) is 147 events, under 1 KB.
-All songs share a 1024-event pool (6 KB). Raise `AUDIO_EVENT_MAX` when the songs need more.
+All songs share a 1024-event pool (6 KB) in `mml.c`. Raise `MML_EVENT_MAX` when the songs
+need more.
 
 ## Using it
 
 ### 1. Add an instrument
 
-A `.wav` that sounds C4, then one line in each of four places:
+A `.wav` that sounds C4, then one line in each of three places:
 
 ```cmake
-srg_audio_sample(ORGAN res/audio/organ.wav 21977 -L)   # CMakeLists.txt; -L to loop
+srg_audio_sample(ORGAN res/audio/organ.wav 21977 -L)   # cmake/audio.cmake; -L to loop
 ```
 ```xml
 <file name="ORGAN.VAG" type="data" source="${CMAKE_BINARY_DIR}/audio/ORGAN.VAG"/>  <!-- iso.xml -->
 ```
 ```c
-{ "ORGAN", "\\AUDIO\\ORGAN.VAG", AUDIO_ADSR1_INSTANT, AUDIO_ADSR2_RELEASE_SHORT }, // g_bank_defs, audio.c
-AUDIO_INSTRUMENT_ORGAN,                                                            // enum, audio.h, same position
+X(ORGAN, SHORT)   // AUDIO_INSTRUMENTS in audio.h: enum entry, @ORGAN name, disc path, release
 ```
+
+A sound effect is added the same way: it is just another instrument.
 
 ### 2. Add a song
 
@@ -163,7 +168,6 @@ to `iso.xml`. Names are 8.3.
 cd_start();
 audio_initialize();                                   // after cd_start: uploads the bank
 g_song_theme = audio_song_load("\\AUDIO\\THEME.MML"); // AUDIO_SONG_INVALID if missing
-g_song_coin  = audio_song_load("\\AUDIO\\COIN.MML");
 ```
 
 Load every song at boot. After that, nothing reads the disc.
@@ -171,16 +175,15 @@ Load every song at boot. After that, nothing reads the disc.
 ### 4. Sound effects
 
 ```c
-// a single note: instrument, note, left/right volume. Returns the voice.
-audio_note_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT,      AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
-audio_note_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT - 12, AUDIO_VOLUME_MAX, 0); // octave down, hard left
+// one note: instrument, note, left/right volume. Returns the voice.
+audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT,      AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
+audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT - 12, AUDIO_VOLUME_MAX, 0); // octave down, hard left
 
-int voice = audio_note_play(AUDIO_INSTRUMENT_LEAD, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
-audio_note_stop(voice);   // looped instruments keep going until you key them off
-
-// a jingle: a whole song on borrowed pool voices, up to 4 at once
-audio_sfx_play(g_song_coin);
+int voice = audio_sfx_play(AUDIO_INSTRUMENT_LEAD, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
+audio_sfx_stop(voice);   // looped instruments keep going until you key them off
 ```
+
+Effects have no fades: a one-shot is short and its envelope release already ends it softly.
 
 Playing an invalid song or instrument is a silent no-op.
 
@@ -188,6 +191,7 @@ Playing an invalid song or instrument is a silent no-op.
 
 ```c
 audio_music_play(g_song_theme, 1);   // 1 = loop, 0 = play once
+audio_music_fade_in(30);             // optional, straight after play: half a second up from silence
 audio_music_set_volume(AUDIO_VOLUME_MAX / 2, AUDIO_VOLUME_MAX / 2);
 audio_music_fade_out(60);            // one second, then stops itself
 audio_music_stop();                  // immediate
@@ -209,14 +213,15 @@ for (;;) {
 ```
 
 Timing assumes 60 frames a second (NTSC). See the `ponytail:` note on
-`AUDIO_FRAMES_PER_MINUTE`.
+`MML_FRAMES_PER_MINUTE` in `mml.c`.
 
 ## Decisions and why
 
 | Decision | Why |
 | --- | --- |
 | Sequenced music, not streamed | A song is a few hundred bytes of notes instead of 1.5 MB a minute, everything fits in memory from boot, and the CD drive belongs to the game. We deleted the old ring buffer, SPU IRQ driver and CD feeder (96 KB of main RAM, 16 KB of sound RAM, 2 voices). The cost: music can only sound like the bank. Recorded vocals or orchestral tracks would need streaming back. |
-| One global bank, loaded at boot, never freed | About 10 KB of 490 KB. There is no reason to page it. More "fonts" are just more rows in `g_bank_defs`. |
+| One global bank, loaded at boot, never freed | About 10 KB of 490 KB. There is no reason to page it. More "fonts" are just more lines in `AUDIO_INSTRUMENTS`. |
+| Sound effects are bank notes, not their own system | One upload path, one tuning model, one voice pool. An effect is a sample tuned to C4 like any instrument, so a song can use it and an effect can be pitched. Multi-note effects were dropped: no game sound needed one yet. |
 | MML text, parsed on the console | No host tool to build or vendor. Songs are diffable text, and parsing a few KB at boot costs nothing. |
 | Every sample is tuned to C4 | No per-instrument root-note or fine-tune field. The sample rate *is* the tuning. |
 | A track owns one voice | Simple, and a song can't starve itself. One note at a time per track, so a chord is several tracks. |
@@ -228,8 +233,8 @@ Timing assumes 60 frames a second (NTSC). See the `ponytail:` note on
 ## The test scene
 
 `source/main.c` wires it up. COLOR+ plays the blip, COLOR- plays it an octave lower, and
-DROP MARKER plays it panned to where the box is. CLEAR MARKERS plays the coin jingle.
-Pause > MUSIC starts the theme looping, or fades it out if it's already playing.
+DROP MARKER plays it panned to where the box is. CLEAR MARKERS plays the snare.
+Pause > MUSIC fades the theme in, looping, or fades it out if it's already playing.
 
 ## Rules of thumb
 
@@ -244,6 +249,7 @@ Pause > MUSIC starts the theme looping, or fades it out if it's already playing.
 
 - `engine-docs/audio-research.md`: the hardware deep dive and the alternatives.
 - `source/spu.h`: the sound RAM map.
-- `source/audio.c`: the bank table, ADSR bit layout, MML grammar and sequencer, each with its
-  own banner comment.
+- `source/audio.c`: the bank, ADSR bit layout, voice map and sequencer, each with its own
+  banner comment.
+- `source/mml.c`: the MML parser.
 - [psxavenc](https://github.com/WonderfulToolchain/psxavenc): the encoder, with every flag.

@@ -1,6 +1,0 @@
-; COIN: a two-note pickup jingle, played with audio_sfx_play().
-
-t150
-
-A @LEAD  v10 o5 l16 b >e4.
-B @PIANO v9  o5 l16 b >e4.

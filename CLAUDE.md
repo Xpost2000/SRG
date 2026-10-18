@@ -10,7 +10,7 @@ Run these from the repo root (they work from anywhere; each re-roots itself):
 
 | Command | What it does |
 | --- | --- |
-| `build.bat` | Configures the `default` CMake preset and builds into `run-tree/`, producing `game.bin` + `game.cue`. Also converts `res/audio/*.wav` to `run-tree/audio/*.VAG` with the vendored `psxavenc` (see the `srg_audio_*` rules in `CMakeLists.txt`). |
+| `build.bat` | Configures the `default` CMake preset and builds into `run-tree/`, producing `game.bin` + `game.cue`. Also converts `res/audio/*.wav` to `run-tree/audio/*.VAG` with the vendored `psxavenc` (see the `srg_audio_*` rules in `cmake/audio.cmake`). |
 | `pcsx-run.bat` | Boots `run-tree/game.cue` in PCSX-Redux. Builds first. |
 | `gen-docs.bat` | Regenerates `system-docs/md/` from the PDFs. Only needed if a PDF changes. |
 
@@ -34,7 +34,8 @@ to regenerate it.
 | `source/input_pad.*` | Low-level pad driver wrapper: raw button masks, held/pressed/released edges. Game code should not call it directly. |
 | `source/input_action.*` | Action layer: named actions, one schema table per layout (UI, gameplay A, gameplay B), polling only, menu auto-repeat. |
 | `source/spu.*` | Low-level sound chip driver: uploads to sound RAM, voice key-on/off with pitch and envelope. Game code should not call it directly. |
-| `source/audio.*` | Audio layer game code uses: the instrument bank, MML song loading, `audio_note_play`, `audio_sfx_play` (jingles), `audio_music_play/stop/fade_out`, and the per-frame `audio_update()` sequencer. |
+| `source/audio.*` | Audio layer game code uses: the instrument bank (`AUDIO_INSTRUMENTS`), MML song loading, `audio_sfx_play` (one note on an instrument), `audio_music_play/stop/fade_in/fade_out`, and the per-frame `audio_update()` sequencer. |
+| `source/mml.*` | MML song parser: text to note events. Only `audio.c` uses it. |
 | `res/audio/` | Instrument samples (`.wav`, each tuned to C4) and songs (`.mml` text). Samples are converted at build time; the `.VAG` outputs live in `run-tree/audio/` and are never committed. |
 | `engine-docs/` | Design docs per engine system (`input.md`, `audio.md`), the audio deep dive (`audio-research.md`) and the style guide (`code-guide.md`). |
 | `source/render.*` | Minimal double-buffered ordering-table renderer: flat `TILE` rectangles and debug text. |
@@ -42,6 +43,7 @@ to regenerate it.
 | `system-docs/` | SDK manuals: PDFs plus converted Markdown in `md/`. |
 | `toolchain-win64/` | Vendored GCC MIPS cross-compiler, PSn00bSDK, CMake, Ninja, PCSX-Redux. |
 | `CMakeLists.txt` | Declares the `game` executable and the `iso` CD image target. |
+| `cmake/audio.cmake` | The `srg_audio_sample` rules that encode the instrument bank. |
 | `CMakePresets.json` | The `default` preset; points CMake at PSn00bSDK's toolchain file. |
 | `iso.xml` | mkpsxiso CD layout — what files land on the disc. |
 | `system.cnf` | PS1 boot configuration (entry executable, stack address). |
@@ -73,7 +75,7 @@ The hardware is small and strange, and most of it is load-bearing when writing c
   the CPU can only reach by DMA. Everything is resident from boot: a small instrument bank
   (each sample tuned to C4) is uploaded to sound RAM once, and songs are MML text parsed into
   note events in main RAM. A sequencer in `audio_update()` plays them, with music on voices
-  0-7 and effects and jingles on 8-23. Call `audio_update()` every frame. `cd_start()` must
+  0-7 and sound effects (one note each) on 8-23. Call `audio_update()` every frame. `cd_start()` must
   run before `audio_initialize()`, and every `audio_song_load()` happens at boot. Game code
   goes through `audio.h`, never `spu.h` or SPU registers. See `engine-docs/audio.md` for the
   MML format and how to add an instrument.

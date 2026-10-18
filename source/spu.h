@@ -44,8 +44,8 @@
 //           | (gap, 64-byte alignment)    |
 //   0x01040 +-----------------------------+
 //           | sample bank                 |  every instrument, uploaded once at
-//           |   ...grows upward...        |  boot by audio_initialize() through a
-//           |                             |  Memory_Bump; never freed
+//           |   ...grows upward...        |  boot by audio_initialize(), packed
+//           |                             |  end to end; never freed
 //   0x7FFF0 +-----------------------------+
 //           | reverb work area            |  SpuInit() parks it here, unused
 //   0x80000 +-----------------------------+
