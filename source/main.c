@@ -16,6 +16,7 @@
 //
 #include "common.h"
 
+#include "ps1_mem_limit.h"
 #include "cdfs.h"
 #include "memory_card.h"
 #include "input_pad.h"
@@ -696,6 +697,11 @@ int main(int argc, const char **argv)
   memory_card_initialize();
   input_pad_initialize();
   input_pad_start();
+
+  {
+    uintptr_t remaining_memory = system_get_remaining_allocatable_memory();
+    _debugprintf("[MEMORY]: %d bytes, %d kb, %d mb left\n", remaining_memory, remaining_memory / 1024, remaining_memory / (1024*1024));
+  }
 
   //
   // The memory card header needs a 16x16 4bpp icon; keep loading it off the
