@@ -9,7 +9,8 @@
 #include <inline_c.h>
 
 #define RENDER_OT_LENGTH          (512)
-#define RENDER_PACKET_BUFFER_SIZE (1024 *  256)
+#define RENDER_PACKET_BUFFER_SIZE (1024 *  10)
+#define TRI_RENDER_PACKET_BUFFER_SIZE (5000)
 #define MAX_RENDER_COMMANDS       (8192)
 
 typedef enum Clip_Edge_Result Clip_Edge_Result;
@@ -44,11 +45,13 @@ typedef struct Render_Buffer {
   DRAWENV  draw_environment;
   uint32_t ordering_table[RENDER_OT_LENGTH];
   uint8_t  packets[RENDER_PACKET_BUFFER_SIZE];
+  uint8_t  tri_packets[TRI_RENDER_PACKET_BUFFER_SIZE * sizeof(POLY_G3)];
 } Render_Buffer;
 
 static Render_Buffer g_buffers[2];
 static int           g_active_buffer;
 static uint8_t*      g_next_packet;
+static uint8_t*      g_next_packet2;
 uint32_t             g_used = 0;
 uint32_t             g_peak_used = 0;
 
@@ -76,7 +79,7 @@ MATRIX light_mtx = {
   /* 0 , -2048 , -2048, */
   0 ,     0, -1,
   -ONE	  , 0	  , 0,
-  ONE	  , 0	  , 0
+  ONE	  , ONE	  , 0
 };
 
 VECTOR cam_pos;
@@ -146,8 +149,8 @@ void render_initialize(void)
   // isbg = 1 makes the GPU clear to the environment colour before drawing
   // the OT, so we never need an explicit clear primitive.
   //
-  setRGB0(&g_buffers[0].draw_environment, 32, 32, 48);
-  setRGB0(&g_buffers[1].draw_environment, 32, 32, 48);
+  setRGB0(&g_buffers[0].draw_environment, 0, 0, 0);
+  setRGB0(&g_buffers[1].draw_environment, 0, 0, 0);
   g_buffers[0].draw_environment.isbg = 1;
   g_buffers[1].draw_environment.isbg = 1;
 
@@ -158,6 +161,7 @@ void render_initialize(void)
 
   g_active_buffer = 0;
   g_next_packet   = g_buffers[0].packets;
+  g_next_packet2   = g_buffers[0].tri_packets;
   ClearOTagR(g_buffers[0].ordering_table, RENDER_OT_LENGTH);
 
   //
@@ -173,12 +177,19 @@ void render_initialize(void)
 
   gte_SetGeomOffset(RENDER_SCREEN_WIDTH/2, RENDER_SCREEN_HEIGHT/2);
   gte_SetGeomScreen(RENDER_SCREEN_WIDTH/2);
-  gte_SetBackColor(32,32,32);
+  gte_SetBackColor(32, 32, 32);
 
   // temp camera setup
   cam_pos.vx = 0;
   cam_pos.vy = 0;
-  cam_pos.vz = -ONE * 400;
+  cam_pos.vz = -ONE * 550;
+
+  for (int i = 0; i < TRI_RENDER_PACKET_BUFFER_SIZE; ++i) {
+    POLY_G3* g = &g_buffers[0].tri_packets[i * sizeof(POLY_G3)];
+    POLY_G3* g1 = &g_buffers[1].tri_packets[i * sizeof(POLY_G3)];
+    setPolyG3(g);
+    setPolyG3(g1);
+  }
 }
 
 //
@@ -198,6 +209,14 @@ void* _alloc_primitive(size_t size)
   g_next_packet += size;
   g_used	+= size;
   assert(g_next_packet <= &buffer->packets[RENDER_PACKET_BUFFER_SIZE] && "[RENDER] Out of packet buffer, raise RENDER_PACKET_BUFFER_SIZE.");
+  return (void*) primitive;
+}
+void* _alloc_primitive2(void)
+{
+  Render_Buffer* buffer    = &g_buffers[g_active_buffer];
+  uint8_t*       primitive = g_next_packet2;
+  g_next_packet2 += sizeof(POLY_G3);
+  g_used += sizeof(POLY_G3);
   return (void*) primitive;
 }
 
@@ -275,6 +294,7 @@ void render_end_frame(void)
   //
   g_active_buffer ^= 1;
   g_next_packet    = display_buffer->packets;
+  g_next_packet2    = display_buffer->tri_packets;
   g_peak_used      = max(g_used, g_peak_used);
   g_used           = 0;
   ClearOTagR(display_buffer->ordering_table, RENDER_OT_LENGTH);
@@ -364,19 +384,18 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   POLY_G3*     triangle;  
   int          i;
   int          z;
-  uint32_t     flg;
 
   MATRIX  xform_matrix;
   MATRIX  local_light_matrix;
-  SVECTOR scale_vector;
   SVECTOR rotation_vector;
+  VECTOR scale_vector;
   VECTOR  translation_vector;
 
   mesh = mesh_command->mesh;
   assert(((mesh->vertex_count % 3) == 0) && "[RENDER] The engine only supports triangles (non-indexed for now :( )).");
 
-  scale_vector	     = mesh_command->scale;
-  rotation_vector    = mesh_command->rotation;
+  scale_vector          = mesh_command->scale;
+  rotation_vector       = mesh_command->rotation;
   translation_vector.vx = mesh_command->position.vx >> 12;
   translation_vector.vy = mesh_command->position.vy >> 12;
   translation_vector.vz = mesh_command->position.vz >> 12;
@@ -392,6 +411,7 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   RotMatrix(&rotation_vector, &xform_matrix);
   TransMatrix(&xform_matrix, &translation_vector);
   MulMatrix0(&light_mtx, &xform_matrix, &local_light_matrix);
+  ScaleMatrix(&xform_matrix, &scale_vector);
 
   //
   // NOTE(jerry):
@@ -406,20 +426,14 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   gte_SetRotMatrix(&xform_matrix);
   gte_SetTransMatrix(&xform_matrix);
 
+  Render_Buffer* buffer    = &g_buffers[g_active_buffer];
   for (i = 0; i < mesh->vertex_count; i+=3) {
     gte_ldv3(&mesh->vertices[i], &mesh->vertices[i+1], &mesh->vertices[i+2]);
     gte_rtpt_b();
-    gte_stflg(&flg);
-
-    if ((flg & (1u << 17)) ||
-	(flg & (1u << 31))) {
-      continue;
-    }
-
     gte_nclip_b();
-
     gte_stopz(&z);
-    if (z <= 0) {
+
+    if ((z <= 0)) {
       continue;
     }
 
@@ -428,12 +442,10 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 
     z >>= 2;
 
-    triangle = _alloc_primitive(sizeof(*triangle));
-    setPolyG3(triangle);
+    triangle = _alloc_primitive2();
     gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
 
     if (R_triangle_clip(triangle, z)) {
-      _dealloc(sizeof(*triangle));
       continue;
     }
 
@@ -442,7 +454,6 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
     setRGB2(triangle, mesh->colors[i+2].vx, mesh->colors[i+2].vy, mesh->colors[i+2].vz);
 
-    /* gte_ldrgb(&triangle->r0); */
     gte_ldrgb3(&triangle->r2, &triangle->r1, &triangle->r0);
     gte_ldv3(&mesh->normals[i], &mesh->normals[i+1], &mesh->normals[i+2]);
     gte_nct_b();

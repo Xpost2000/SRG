@@ -866,7 +866,7 @@ int main(int argc, const char **argv)
     //
     R_render_new_frame();
     scene_update(&scene);
-    scene_draw(&scene);
+    /* scene_draw(&scene); */
     // draw another box!
 #if 0
     {
@@ -886,16 +886,22 @@ int main(int argc, const char **argv)
       int i;
       int j;
       for (i = 0; i < 3; ++i) {
-	for (j = 0; j < 4; ++j) {
+	for (j = 0; j < 3; ++j) {
 	  R_render_push_mesh((Render_Command_Mesh) {
-	    .position = { (j * 200 - 240) * 4096 + isin(e) * 100, 4096 * 50, 4096 * (40 + 150 * i) },
+	    .position = { (j * 200 - 240) * ONE + isin(e) * 100, ONE * 50, ONE * (40 + 150 * i) },
 	    /* .position = { ONE * 200, 0, 0 }, */
 	    .scale = { ONE, ONE, ONE },
-	    .rotation = { 1024, 0, 1024*3 },
+	    .rotation = { 1024, 0, 1024*3, 0 },
 	    .mesh = &g_m1
 	  });
 	}
       }
+      R_render_push_mesh((Render_Command_Mesh) {
+	.position = { 0, ONE * 200, ONE * 200 },
+	.scale = { ONE*3, ONE/4, ONE*3 },
+	.rotation = { 0, 0, 0, 0 },
+	.mesh = &g_testcube
+      });
       e += (4096/120);
     }
 #endif
