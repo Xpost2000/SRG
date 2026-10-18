@@ -410,6 +410,12 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 
     gte_rtpt_b();
     gte_nclip_b();
+
+    gte_stflg(&z);
+    if (z & (1u << 31)) {
+      continue;
+    }
+
     gte_stopz(&z);
 
     if (z <= 0) {
@@ -434,7 +440,7 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     gte_ldrgb3(&triangle->r2, &triangle->r1, &triangle->r0);
     gte_ldv3(&mesh->normals[i], &mesh->normals[i+1], &mesh->normals[i+2]);
     gte_nct_b();
-    gte_strgb3(&triangle->r0, &triangle->r1, &triangle->r2);
+    gte_strgb3_g3(triangle);
 
     _sort_primitive(z, triangle);
   }
