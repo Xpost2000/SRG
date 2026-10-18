@@ -30,6 +30,9 @@
 #include <psxgpu.h>
 
 static int d = -2572;
+static int last_vblank = 0;
+static int vblank_now = 0;
+static int intensity = 1;
 
 //
 // TEST START
@@ -396,8 +399,8 @@ static void settings_cycle_schema(Test_Scene* scene, int pad_index, int directio
 static void scene_update_gameplay(Test_Scene* scene)
 {
   int color_count = array_count(g_box_colors);
-  int dx          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT);
-  int dy          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_UP,   INPUT_ACTION_MOVE_DOWN);
+  int dx          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT) * (vblank_now - last_vblank);
+  int dy          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_UP,   INPUT_ACTION_MOVE_DOWN) * (vblank_now - last_vblank);
   int speed       = BOX_SPEED_NORMAL;
   int target_size = BOX_SIZE_NORMAL;
 
@@ -408,6 +411,9 @@ static void scene_update_gameplay(Test_Scene* scene)
   if (input_action_held(P1_PAD, INPUT_ACTION_SLOW))   speed = BOX_SPEED_SLOW;
   if (input_action_held(P1_PAD, INPUT_ACTION_GROW))   target_size = BOX_SIZE_LARGE;
   if (input_action_held(P1_PAD, INPUT_ACTION_SHRINK)) target_size = BOX_SIZE_SMALL;
+
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_GROW))  intensity++;
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_SHRINK))  intensity--;
 
   d += dx * 4;
   scene->box.x += dx * speed;
@@ -871,6 +877,7 @@ int main(int argc, const char **argv)
     // make snapshot and current identical, and no tap would ever register.
     //
     R_render_new_frame();
+    vblank_now = VSync(-1);
     scene_update(&scene);
     scene_draw(&scene);
     // draw another box!
@@ -891,8 +898,9 @@ int main(int argc, const char **argv)
       static int e = 0;
       int i;
       int j;
+
       for (i = 0; i < 3; ++i) {
-	for (j = 0; j < 3; ++j) {
+	for (j = 0; j < 3 * intensity; ++j) {
 	  R_render_push_mesh((Render_Command_Mesh) {
 	    .position = { (j * 200 - 240) * ONE + isin(e) * 100, ONE * 50, ONE * (40 + 150 * i) },
 	    /* .position = { ONE * 200, 0, 0 }, */
@@ -902,6 +910,7 @@ int main(int argc, const char **argv)
 	  });
 	}
       }
+
       R_render_push_mesh((Render_Command_Mesh) {
 	.position = { 0, ONE * 200, ONE * 200 },
 	.scale = { ONE*3, ONE/4, ONE*3 },
@@ -913,6 +922,7 @@ int main(int argc, const char **argv)
 #endif
 
     input_pad_frame();
+    last_vblank = VSync(-1);
     R_render_end_frame();
     render_end_frame();
   }
