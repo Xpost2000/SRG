@@ -440,15 +440,12 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
     gte_avsz3_b();
     gte_stotz(&z);
 
-    z >>= 2;
-
     triangle = _alloc_primitive2();
     gte_stsxy3(&triangle->x0, &triangle->x1, &triangle->x2);
 
     if (R_triangle_clip(triangle, z)) {
       continue;
     }
-
 
     setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
     setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);

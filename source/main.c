@@ -866,7 +866,7 @@ int main(int argc, const char **argv)
     //
     R_render_new_frame();
     scene_update(&scene);
-    /* scene_draw(&scene); */
+    scene_draw(&scene);
     // draw another box!
 #if 0
     {
@@ -899,7 +899,7 @@ int main(int argc, const char **argv)
       R_render_push_mesh((Render_Command_Mesh) {
 	.position = { 0, ONE * 200, ONE * 200 },
 	.scale = { ONE*3, ONE/4, ONE*3 },
-	.rotation = { 0, 0, 0, 0 },
+	.rotation = { e, 0, 0, 0 },
 	.mesh = &g_testcube
       });
       e += (4096/120);
