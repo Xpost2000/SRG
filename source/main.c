@@ -22,6 +22,8 @@
 #include "input_action.h"
 #include "render.h"
 #include "font.h"
+#include "audio.h"
+#include "ps1_mem_limit.h"
 
 //
 // psxgpu just to directly create primitives for font testing
@@ -80,6 +82,7 @@ enum Menu_Item {
   MENU_ITEM_P2_SCHEMA,
   MENU_ITEM_SAVE,
   MENU_ITEM_LOAD,
+  MENU_ITEM_MUSIC, // start / fade out the sequenced test song
   MENU_ITEM_COUNT
 };
 
@@ -137,7 +140,7 @@ static const char* const g_action_labels[INPUT_ACTION_COUNT] = {
 };
 
 static const char* const g_menu_labels[MENU_ITEM_COUNT] = {
-  "P1 LAYOUT", "P2 LAYOUT", "SAVE TO CARD", "LOAD FROM CARD",
+  "P1 LAYOUT", "P2 LAYOUT", "SAVE TO CARD", "LOAD FROM CARD", "MUSIC",
 };
 
 static uint8_t g_iconfile[CD_SECTOR_SIZE]; // memory card icon TIM, one CD sector
@@ -148,6 +151,16 @@ static Font    g_font2;
 // Just for font testing purposes
 //
 static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
+
+//
+// Audio test song, MML text from res/audio (see engine-docs/audio.md): a
+// four-bar loop. Sound effects are single notes on bank instruments, so they
+// need no handle at all.
+//
+#define MUSIC_TEST_PATH   ("\\AUDIO\\THEME.MML")
+#define MUSIC_FADE_FRAMES (30)
+
+static Audio_Song g_song_theme = AUDIO_SONG_INVALID;
 
 // ----------------------------------------------------------------------------
 //  Memory card <-> settings
@@ -214,6 +227,22 @@ static void settings_save(Test_Scene* scene)
   input_pad_start();
 
   strcpy(scene->status, ok ? "SAVED SETTINGS TO CARD" : "SAVE FAILED (NO CARD?)");
+}
+
+// ----------------------------------------------------------------------------
+//  Audio test helpers
+// ----------------------------------------------------------------------------
+
+static void music_toggle(Test_Scene* scene)
+{
+  if (audio_music_is_playing()) {
+    audio_music_fade_out(MUSIC_FADE_FRAMES);
+    strcpy(scene->status, "MUSIC FADING OUT");
+  } else {
+    audio_music_play(g_song_theme, 1);
+    audio_music_fade_in(MUSIC_FADE_FRAMES);
+    strcpy(scene->status, audio_music_is_playing() ? "MUSIC PLAYING FROM RAM" : "MUSIC FAILED TO START");
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -296,19 +325,32 @@ static void scene_update_gameplay(Test_Scene* scene)
   //
   // Tapped things. pressed() is true for exactly one frame per press.
   //
+  //
+  // Every tap makes a noise so the voice pool can be heard working: mash
+  // these and the blips overlap instead of cutting each other off. COLOR-
+  // plays the same instrument an octave down to show pitch is free, and
+  // CLEAR plays a snare from the same bank the music uses.
+  //
   if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_NEXT)) {
     scene->box_color_index = (scene->box_color_index + 1) % color_count;
+    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_PREV)) {
     scene->box_color_index = (scene->box_color_index + color_count - 1) % color_count;
+    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT - 12, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_DROP_MARKER) && scene->marker_count < MARKER_CAPACITY) {
     Vector2* marker = &scene->markers[scene->marker_count++];
     marker->x = scene->box.x + scene->box.w / 2 - MARKER_SIZE / 2;
     marker->y = scene->box.y + scene->box.h / 2 - MARKER_SIZE / 2;
+    // panned to where the box is: left edge = left speaker
+    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT,
+                   AUDIO_VOLUME_MAX - (AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH),
+                   AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_CLEAR_MARKERS)) {
     scene->marker_count = 0;
+    audio_sfx_play(AUDIO_INSTRUMENT_SNARE, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_TOGGLE_OUTLINE)) {
     scene->box_outline ^= 1;
@@ -353,6 +395,9 @@ static void scene_update_menu(Test_Scene* scene)
       } break;
       case MENU_ITEM_LOAD: {
         settings_load(scene);
+      } break;
+      case MENU_ITEM_MUSIC: {
+        music_toggle(scene);
       } break;
     }
   }
@@ -448,12 +493,14 @@ static void draw_menu(Test_Scene* scene)
   char line[64];
   int  y = 116;
 
-  render_tile(52, 104, 216, 92, 0, 0, 0, 2);
+  render_tile(52, 104, 216, 116, 0, 0, 0, 2);
 
   for (int item = 0; item < MENU_ITEM_COUNT; ++item, y += 12) {
     char cursor = item == scene->menu_cursor ? '>' : ' ';
     if (item == MENU_ITEM_P1_SCHEMA || item == MENU_ITEM_P2_SCHEMA) {
       sprintf(line, "%c %s: < TYPE %c >", cursor, g_menu_labels[item], schema_letter(scene->settings.gameplay_schema[item]));
+    } else if (item == MENU_ITEM_MUSIC) {
+      sprintf(line, "%c %s: %s", cursor, g_menu_labels[item], audio_music_is_playing() ? "STOP" : "PLAY");
     } else {
       sprintf(line, "%c %s", cursor, g_menu_labels[item]);
     }
@@ -544,6 +591,8 @@ static void scene_draw(Test_Scene* scene)
 
   render_text(8, 44, 0, scene->status);
 
+  render_text(8, 54, 0, audio_music_is_playing() ? "MUSIC ON" : "MUSIC OFF  (PAUSE > MUSIC)");
+
   if (scene->mode == SCENE_MODE_MENU) {
     draw_menu(scene);
   } else if (input_action_held(P1_PAD, INPUT_ACTION_HELP)) {
@@ -566,6 +615,7 @@ int main(int argc, const char **argv)
 
   render_initialize();
   cd_start();
+  audio_initialize(); // after cd_start: the SPU must be reset after the CD controller
   memory_card_initialize();
   input_pad_initialize();
   input_pad_start();
@@ -661,6 +711,13 @@ int main(int argc, const char **argv)
     }
   }
 
+  //
+  // Songs. Parsed once into note events in main RAM; the instruments they
+  // play are already in sound RAM from audio_initialize(). Nothing about
+  // audio touches the disc after this.
+  //
+  g_song_theme = audio_song_load(MUSIC_TEST_PATH);
+
   scene_reset_box(&scene);
   settings_load(&scene);
   scene_enter_gameplay(&scene);
@@ -675,6 +732,8 @@ int main(int argc, const char **argv)
     //
     //   scene_update       poll actions: "now" is the packet from the last
     //                      vblank, "last frame" is the snapshot before it
+    //   audio_update       step the sequencer: key the notes due this frame,
+    //                      step fades; never blocks
     //   scene_draw         build the frame
     //   input_pad_frame    snapshot the packet we just finished reading and
     //                      bump the held-frame counters
@@ -685,6 +744,7 @@ int main(int argc, const char **argv)
     // make snapshot and current identical, and no tap would ever register.
     //
     scene_update(&scene);
+    audio_update();
     scene_draw(&scene);
     input_pad_frame();
     render_end_frame();

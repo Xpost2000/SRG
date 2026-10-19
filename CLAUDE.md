@@ -10,7 +10,7 @@ Run these from the repo root (they work from anywhere; each re-roots itself):
 
 | Command | What it does |
 | --- | --- |
-| `build.bat` | Configures the `default` CMake preset and builds into `run-tree/`, producing `game.bin` + `game.cue`. |
+| `build.bat` | Configures the `default` CMake preset and builds into `run-tree/`, producing `game.bin` + `game.cue`. Also converts `res/audio/*.wav` to `run-tree/audio/*.VAG` with the vendored `psxavenc` (see the `srg_audio_*` rules in `cmake/audio.cmake`). |
 | `pcsx-run.bat` | Boots `run-tree/game.cue` in PCSX-Redux. Builds first. |
 | `gen-docs.bat` | Regenerates `system-docs/md/` from the PDFs. Only needed if a PDF changes. |
 
@@ -33,12 +33,17 @@ to regenerate it.
 | `source/` | Game source. `main.c` is currently the input test scene (a D-pad-driven box plus a fake pause menu). |
 | `source/input_pad.*` | Low-level pad driver wrapper: raw button masks, held/pressed/released edges. Game code should not call it directly. |
 | `source/input_action.*` | Action layer: named actions, one schema table per layout (UI, gameplay A, gameplay B), polling only, menu auto-repeat. |
-| `engine-docs/` | Design docs per engine system (`input.md`) and the style guide (`code-guide.md`). |
+| `source/spu.*` | Low-level sound chip driver: uploads to sound RAM, voice key-on/off with pitch and envelope. Game code should not call it directly. |
+| `source/audio.*` | Audio layer game code uses: the instrument bank (`AUDIO_INSTRUMENTS`), MML song loading, `audio_sfx_play` (one note on an instrument), `audio_music_play/stop/fade_in/fade_out`, and the per-frame `audio_update()` sequencer. |
+| `source/mml.*` | MML song parser: text to note events. Only `audio.c` uses it. |
+| `res/audio/` | Instrument samples (`.wav`, each tuned to C4) and songs (`.mml` text). Samples are converted at build time; the `.VAG` outputs live in `run-tree/audio/` and are never committed. |
+| `engine-docs/` | Design docs per engine system (`input.md`, `audio.md`), the audio deep dive (`audio-research.md`) and the style guide (`code-guide.md`). |
 | `source/render.*` | Minimal double-buffered ordering-table renderer: flat `TILE` rectangles and debug text. |
 | `source/memory_card.*`, `source/cdfs.*`, `source/memory_arena.*` | Memory card save/load, CD file reads, bump allocator. |
 | `system-docs/` | SDK manuals: PDFs plus converted Markdown in `md/`. |
 | `toolchain-win64/` | Vendored GCC MIPS cross-compiler, PSn00bSDK, CMake, Ninja, PCSX-Redux. |
 | `CMakeLists.txt` | Declares the `game` executable and the `iso` CD image target. |
+| `cmake/audio.cmake` | The `srg_audio_sample` rules that encode the instrument bank. |
 | `CMakePresets.json` | The `default` preset; points CMake at PSn00bSDK's toolchain file. |
 | `iso.xml` | mkpsxiso CD layout — what files land on the disc. |
 | `system.cnf` | PS1 boot configuration (entry executable, stack address). |
@@ -66,6 +71,14 @@ The hardware is small and strange, and most of it is load-bearing when writing c
   `VSync(0)`, and memory-card I/O stops the pad driver so call `input_pad_start()` after any
   card access. Game code goes through `input_action.h` (named actions, schemas), never raw
   `PAD_*` masks, so a player's chosen preset always applies.
+- **Audio** is the SPU: 24 voices playing 4-bit ADPCM out of its own 512 KB sound RAM, which
+  the CPU can only reach by DMA. Everything is resident from boot: a small instrument bank
+  (each sample tuned to C4) is uploaded to sound RAM once, and songs are MML text parsed into
+  note events in main RAM. A sequencer in `audio_update()` plays them, with music on voices
+  0-7 and sound effects (one note each) on 8-23. Call `audio_update()` every frame. `cd_start()` must
+  run before `audio_initialize()`, and every `audio_song_load()` happens at boot. Game code
+  goes through `audio.h`, never `spu.h` or SPU registers. See `engine-docs/audio.md` for the
+  MML format and how to add an instrument.
 
 ## Where to look things up
 
@@ -89,6 +102,10 @@ grep -rn "SetDefDrawEnv" toolchain-win64/include/libpsn00b/
 ```
 
 See `system-docs/md/README.md` for more detail and the conversion's known limitations.
+
+For audio specifically, read `engine-docs/audio-research.md` first: it explains the SPU and
+CD audio paths in plain terms, compares how commercial games did music, and lists which of the
+manuals' SPU functions actually exist in PSn00bSDK (there is no `SpuSetIRQ`, for example).
 
 ## Code conventions
 

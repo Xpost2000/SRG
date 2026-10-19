@@ -18,11 +18,16 @@ psn00bsdk_add_executable(game GPREL
 				  source/render.c
 				  source/font.c
 				  source/serializer.c
+				  source/spu.c
+				  source/audio.c
+				  source/mml.c
           source/ps1_mem_limit.c)
+
+include(cmake/audio.cmake)
 
 psn00bsdk_add_cd_image(
 	iso      # Target name
 	game     # Output file name (= game.bin + game.cue)
 	iso.xml  # Path to config file
-	DEPENDS game system.cnf res/
+	DEPENDS game system.cnf res/ ${AUDIO_ASSETS}
 )

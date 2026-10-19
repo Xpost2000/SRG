@@ -1,0 +1,18 @@
+; THEME: the test loop. C - Am - F - G, one bar each, at 120 bpm.
+; Format reference: engine-docs/audio.md. Every line belongs to the track
+; named by its first letter; tracks start together.
+
+t120
+
+A @LEAD v9 o5 l8 e g >c< b a g e g   a >c< a g f e d c
+A               f a >c< a f a g f   g b >d< b g4 r4
+
+B @PIANO v8 l4 o4 c e g e   o3 a o4 c e c   o3 f a o4 c o3 a   o3 g b o4 d o3 b
+
+C @BASS v13 l8 o2 c r c r c r c r   o1 a r a r a r a r
+C              o1 f r f r f r f r   o1 g r g r g r g r
+
+D v15 l8 @KICK c r r r @SNARE c r @KICK c r   @KICK c r r r @SNARE c r @KICK c r
+D        @KICK c r r r @SNARE c r @KICK c r   @KICK c r r r @SNARE c c c c
+
+E @HAT v6 l8 c c c c c c c c   c c c c c c c c   c c c c c c c c   c c c c c c c c
