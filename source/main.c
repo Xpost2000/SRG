@@ -16,6 +16,7 @@
 //
 #include "common.h"
 
+#include "ps1_mem_limit.h"
 #include "cdfs.h"
 #include "memory_card.h"
 #include "input_pad.h"
@@ -23,12 +24,138 @@
 #include "render.h"
 #include "font.h"
 #include "audio.h"
-#include "ps1_mem_limit.h"
 
 //
 // psxgpu just to directly create primitives for font testing
 //
 #include <psxgpu.h>
+
+static int d = -2572;
+static int last_vblank = 0;
+static int vblank_now = 0;
+static int frame_divisor = 0;
+static int intensity = 1;
+
+//
+// TEST START
+//
+#define CUBE_VERTS 36
+
+SVECTOR cube_verts[CUBE_VERTS] = {
+  // -Z face
+  { -100, -100, -100, 0 },
+  {  100, -100, -100, 0 },
+  { -100,  100, -100, 0 },
+
+  {  100, -100, -100, 0 },
+  {  100,  100, -100, 0 },
+  { -100,  100, -100, 0 },
+
+  // +Z face
+  {  100, -100,  100, 0 },
+  { -100, -100,  100, 0 },
+  {  100,  100,  100, 0 },
+
+  { -100, -100,  100, 0 },
+  { -100,  100,  100, 0 },
+  {  100,  100,  100, 0 },
+
+  // -Y face
+  { -100, -100,  100, 0 },
+  {  100, -100,  100, 0 },
+  { -100, -100, -100, 0 },
+
+  {  100, -100,  100, 0 },
+  {  100, -100, -100, 0 },
+  { -100, -100, -100, 0 },
+
+  // +Y face
+  {  100,  100,  100, 0 },
+  { -100,  100,  100, 0 },
+  {  100,  100, -100, 0 },
+
+  { -100,  100,  100, 0 },
+  { -100,  100, -100, 0 },
+  {  100,  100, -100, 0 },
+
+  // -X face
+  { -100, -100, -100, 0 },
+  { -100,  100, -100, 0 },
+  { -100, -100,  100, 0 },
+
+  { -100, -100,  100, 0 },
+  { -100,  100, -100, 0 },
+  { -100,  100,  100, 0 },
+
+  // +X face
+  {  100,  100, -100, 0 },
+  {  100, -100, -100, 0 },
+  {  100,  100,  100, 0 },
+
+  {  100, -100, -100, 0 },
+  {  100, -100,  100, 0 },
+  {  100,  100,  100, 0 },
+};
+
+SVECTOR cube_norms[CUBE_VERTS] = {
+  // -Z face
+  { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 },
+  { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 }, { 0, 0, -ONE, 0 },
+
+  // +Z face
+  { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 },
+  { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 }, { 0, 0, ONE, 0 },
+
+  // -Y face
+  { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 },
+  { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 }, { 0, -ONE, 0, 0 },
+
+  // +Y face
+  { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 },
+  { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 }, { 0, ONE, 0, 0 },
+
+  // -X face
+  { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 },
+  { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 }, { -ONE, 0, 0, 0 },
+
+  // +X face
+  { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 },
+  { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 }, { ONE, 0, 0, 0 },
+};
+
+SVECTOR cube_colors[CUBE_VERTS] = {
+  // -Z face
+  { 255, 0, 0, 0 }, { 255, 0, 0, 0 }, { 255, 0, 0, 0 },
+  { 255, 0, 0, 0 }, { 255, 0, 0, 0 }, { 255, 0, 0, 0 },
+
+  // +Z face
+  { 0, 255, 0, 0 }, { 0, 255, 0, 0 }, { 0, 255, 0, 0 },
+  { 0, 255, 0, 0 }, { 0, 255, 0, 0 }, { 0, 255, 0, 0 },
+
+  // -Y face
+  { 0, 0, 255, 0 }, { 0, 0, 255, 0 }, { 0, 0, 255, 0 },
+  { 0, 0, 255, 0 }, { 0, 0, 255, 0 }, { 0, 0, 255, 0 },
+
+  // +Y face
+  { 255, 255, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 0, 0 },
+  { 255, 255, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 0, 0 },
+
+  // -X face
+  { 255, 0, 255, 0 }, { 255, 0, 255, 0 }, { 255, 0, 255, 0 },
+  { 255, 0, 255, 0 }, { 255, 0, 255, 0 }, { 255, 0, 255, 0 },
+
+  // +X face
+  { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
+  { 0, 255, 255, 0 }, { 0, 255, 255, 0 }, { 0, 255, 255, 0 },
+};
+
+Render_Mesh g_testcube;
+Render_Mesh g_m1;
+Render_Mesh g_m2;
+
+//
+// TEST END
+//
 
 
 // ----------------------------------------------------------------------------
@@ -151,6 +278,9 @@ static Font    g_font2;
 // Just for font testing purposes
 //
 static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
+
+static uint8_t g_meshfile1[2048 * 20]; // they're actually like 30KB but just in case.
+static uint8_t g_meshfile2[2048 * 20];
 
 //
 // Audio test song, MML text from res/audio (see engine-docs/audio.md): a
@@ -298,8 +428,8 @@ static void settings_cycle_schema(Test_Scene* scene, int pad_index, int directio
 static void scene_update_gameplay(Test_Scene* scene)
 {
   int color_count = array_count(g_box_colors);
-  int dx          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT);
-  int dy          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_UP,   INPUT_ACTION_MOVE_DOWN);
+  int dx          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT) * (vblank_now - last_vblank);
+  int dy          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_UP,   INPUT_ACTION_MOVE_DOWN) * (vblank_now - last_vblank);
   int speed       = BOX_SPEED_NORMAL;
   int target_size = BOX_SIZE_NORMAL;
 
@@ -311,6 +441,10 @@ static void scene_update_gameplay(Test_Scene* scene)
   if (input_action_held(P1_PAD, INPUT_ACTION_GROW))   target_size = BOX_SIZE_LARGE;
   if (input_action_held(P1_PAD, INPUT_ACTION_SHRINK)) target_size = BOX_SIZE_SMALL;
 
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_GROW))  intensity++;
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_SHRINK))  intensity--;
+
+  d += dx * 4;
   scene->box.x += dx * speed;
   scene->box.y += dy * speed;
 
@@ -382,23 +516,24 @@ static void scene_update_menu(Test_Scene* scene)
   }
   if (on_layout_item && input_action_pressed(P1_PAD, INPUT_ACTION_UI_RIGHT)) {
     settings_cycle_schema(scene, scene->menu_cursor, +1);
+    
   }
 
   if (input_action_pressed(P1_PAD, INPUT_ACTION_UI_CONFIRM)) {
     switch (scene->menu_cursor) {
-      case MENU_ITEM_P1_SCHEMA:
-      case MENU_ITEM_P2_SCHEMA: {
-        settings_cycle_schema(scene, scene->menu_cursor, +1);
-      } break;
-      case MENU_ITEM_SAVE: {
-        settings_save(scene);
-      } break;
-      case MENU_ITEM_LOAD: {
-        settings_load(scene);
-      } break;
-      case MENU_ITEM_MUSIC: {
-        music_toggle(scene);
-      } break;
+    case MENU_ITEM_P1_SCHEMA:
+    case MENU_ITEM_P2_SCHEMA: {
+      settings_cycle_schema(scene, scene->menu_cursor, +1);
+    } break;
+    case MENU_ITEM_SAVE: {
+      settings_save(scene);
+    } break;
+    case MENU_ITEM_LOAD: {
+      settings_load(scene);
+    } break;
+    case MENU_ITEM_MUSIC: {
+      music_toggle(scene);
+    } break;
     }
   }
 
@@ -411,12 +546,12 @@ static void scene_update_menu(Test_Scene* scene)
 static void scene_update(Test_Scene* scene)
 {
   switch (scene->mode) {
-    case SCENE_MODE_GAMEPLAY: {
-      scene_update_gameplay(scene);
-    } break;
-    case SCENE_MODE_MENU: {
-      scene_update_menu(scene);
-    } break;
+  case SCENE_MODE_GAMEPLAY: {
+    scene_update_gameplay(scene);
+  } break;
+  case SCENE_MODE_MENU: {
+    scene_update_menu(scene);
+  } break;
   }
 }
 
@@ -580,10 +715,9 @@ static void scene_draw(Test_Scene* scene)
 
   draw_box(scene);
 
-  sprintf(line, "MODE %s  P1 LAYOUT %c  P2 LAYOUT %c",
-          scene->mode == SCENE_MODE_MENU ? "MENU" : "GAME",
-          schema_letter(scene->settings.gameplay_schema[0]),
-          schema_letter(scene->settings.gameplay_schema[1]));
+  extern uint32_t g_peak_used;
+  sprintf(line, "CMDBUFFERUSG: %d, ANG: %d",
+	  g_peak_used, d);
   render_text(8, 8, 0, line);
 
   draw_pad_debug_line(P1_PAD, 20);
@@ -620,14 +754,11 @@ int main(int argc, const char **argv)
   input_pad_initialize();
   input_pad_start();
 
-  //
-  // Debug to show memory counting
-  //
   {
     uintptr_t remaining_memory = system_get_remaining_allocatable_memory();
     _debugprintf("[MEMORY]: %d bytes, %d kb, %d mb left\n", remaining_memory, remaining_memory / 1024, remaining_memory / (1024*1024));
   }
-  
+
   //
   // The memory card header needs a 16x16 4bpp icon; keep loading it off the
   // disc as before.
@@ -663,7 +794,7 @@ int main(int argc, const char **argv)
 	  .w = g_font1.tim.image.width,
 	  .h = g_font1.tim.image.height,
 	},
-	tim.paddr);
+		  tim.paddr);
 	LoadImage(&(RECT) {
           .x = 0, 480,	
 	  .w = g_font1.tim.clut.width,
@@ -696,7 +827,7 @@ int main(int argc, const char **argv)
 	  .w = g_font2.tim.image.width,
 	  .h = g_font2.tim.image.height,
 	},
-	tim.paddr);
+		  tim.paddr);
 	LoadImage(&(RECT) {
           .x = 0, 481,	
 	  .w = g_font2.tim.clut.width,
@@ -724,6 +855,67 @@ int main(int argc, const char **argv)
 
   printf("Hello PSX\n");
 
+  g_testcube.vertices = cube_verts;
+  g_testcube.normals = cube_norms;
+  g_testcube.colors = cube_colors;
+  g_testcube.vertex_count = array_count(cube_verts);
+  _debugprintf("test mesh has: %d vertices", g_testcube.vertex_count);
+
+  //
+  // loading mesh files
+  //
+  {
+    CD_File file = cd_file_open("\\RES\\M1.BIN");
+    int nsectors = ((sizeof(g_meshfile1)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
+    if (file.valid) {
+      cd_file_read_sync_uncached(&file, g_meshfile1, nsectors * CD_SECTOR_SIZE);
+
+      //
+      // setup mesh from cd file memory
+      //
+      {
+	uint8_t* cursor = g_meshfile1;
+	g_m1.vertex_count = *((uint16_t*)cursor);
+
+	cursor += 2;
+	g_m1.vertices = (SVECTOR*)cursor;
+
+	cursor += sizeof(SVECTOR) * g_m1.vertex_count;
+	g_m1.normals = (SVECTOR*)cursor;
+      }
+      printf("[MESH] vtxcount=%d\n", g_m1.vertex_count);
+    } else {
+      printf("[MAIN] model file not found on disk\n");
+    }
+  }
+
+  {
+    CD_File file = cd_file_open("\\RES\\M2.BIN");
+    int nsectors = ((sizeof(g_meshfile2)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
+    if (file.valid) {
+      cd_file_read_sync_uncached(&file, g_meshfile2, nsectors * CD_SECTOR_SIZE);
+
+      //
+      // setup mesh from cd file memory
+      //
+      {
+	uint8_t* cursor = g_meshfile2;
+	g_m2.vertex_count = *((uint16_t*)cursor);
+
+	cursor += 2;
+	g_m2.vertices = (SVECTOR*)cursor;
+
+	cursor += sizeof(SVECTOR) * g_m2.vertex_count;
+	g_m2.normals = (SVECTOR*)cursor;
+      }
+      printf("[MESH] vtxcount=%d\n", g_m2.vertex_count);
+    } else {
+      printf("[MAIN] model file not found on disk\n");
+    }
+  }
+
+
+
   for (;;) {
     //
     // Frame order matters. pressed() means "down now, up in the snapshot",
@@ -743,10 +935,56 @@ int main(int argc, const char **argv)
     // Calling input_pad_frame() right before scene_update() instead would
     // make snapshot and current identical, and no tap would ever register.
     //
+    R_render_new_frame();
+    vblank_now = VSync(-1);
+    frame_divisor = vblank_now - last_vblank;
     scene_update(&scene);
     audio_update();
     scene_draw(&scene);
+    // draw another box!
+#if 0
+    {
+      static int e = 0;
+      R_render_push_mesh((Render_Command_Mesh) {
+	.position = { isin(e += (4096/120)) * 100, 0, 0 },
+	/* .position = { ONE * 200, 0, 0 }, */
+	.scale = { ONE, ONE, ONE },
+	.rotation = { 1024, 0, d},
+	.mesh = &g_m1
+      });
+      e+=4;
+    }
+#else
+    {
+      static int e = 0;
+      int i;
+      int j;
+
+      for (i = 0; i < 3; ++i) {
+	for (j = 0; j < 3 * intensity; ++j) {
+	  R_render_push_mesh((Render_Command_Mesh) {
+	    .position = { (j * 200 - 240) * ONE + isin(e) * 100, ONE * 50, ONE * (40 + 150 * i) },
+	    /* .position = { ONE * 200, 0, 0 }, */
+	    .scale = { ONE, ONE, ONE },
+	    .rotation = { 1024, 0, 1024*3, 0 },
+	    .mesh = &g_m1
+	  });
+	}
+      }
+
+      R_render_push_mesh((Render_Command_Mesh) {
+	.position = { 0, ONE * 200, ONE * 200 },
+	.scale = { ONE*3, ONE/4, ONE*3 },
+	.rotation = { e, 0, 0, 0 },
+	.mesh = &g_testcube
+      });
+      e += (4096/120) * frame_divisor;
+    }
+#endif
+
     input_pad_frame();
+    last_vblank = VSync(-1);
+    R_render_end_frame();
     render_end_frame();
   }
 

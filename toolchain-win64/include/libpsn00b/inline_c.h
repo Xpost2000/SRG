@@ -1029,8 +1029,8 @@
 	:						\
 	: "$12", "$13", "$14" )
 
-/*#define gte_nop() __asm__ volatile ( \
-	"nop;" )*/
+#define gte_nop() __asm__ volatile ( \
+	"nop;" )
 
 #define gte_subdvl( r0, r1, r2 ) __asm__ volatile ( \
 	"lw	$12, 0( %0 );"		\
