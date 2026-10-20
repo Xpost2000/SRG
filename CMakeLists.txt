@@ -14,11 +14,13 @@ project(
 #
 # Could also be read for tools as well
 #
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py")
 	add_custom_command(
 		OUTPUT "${CMAKE_SOURCE_DIR}/source/fileslist.h"
 			     "${CMAKE_SOURCE_DIR}/source/fileslist.c"
-		COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py"
+					 COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py"
 			     "${CMAKE_SOURCE_DIR}/iso.xml"
 		DEPENDS "${CMAKE_SOURCE_DIR}/iso.xml"
 		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
