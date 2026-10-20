@@ -1,0 +1,98 @@
+#include "filesystem.h"
+
+typedef struct Opened_File_State Opened_File_State;
+
+struct Opened_File_State {
+  CD_File	file;
+  unsigned char buffer[CD_SECTOR_SIZE * 2];
+  uint32_t	file_size_aligned;
+  uint32_t	file_size_raw;
+};
+
+static Opened_File_State g_open_files[MAX_OPENED_FILES];
+
+File_Handle filesystem_open(const char* filepath)
+{
+  int i;
+
+  for (i = 0; i < MAX_OPENED_FILES; ++i) {
+    if (!g_open_files[i].file.valid) {
+      Opened_File_State*	state = &g_open_files[i];
+      CD_File			file  = cd_file_open(filepath);
+
+      if (!file.valid) {
+        _debugprintf("[FILESYSTEM] Failed to open: %s", filepath);
+        return 0;
+      }
+
+      state->file	       = file;
+      state->file_size_raw     = cd_file_get_size(&file);
+      state->file_size_aligned = cd_file_get_memory_required(&file);
+      memset(state->buffer, 0, sizeof(state->buffer));
+      return (File_Handle)(i + 1);
+    }
+  }
+
+  _debugprintf("[FILESYSTEM] Too many open files");
+  assert(0);
+  return 0;
+}
+
+int filesystem_read(File_Handle file, unsigned char* data, size_t size)
+{
+  size_t		remaining;
+  size_t		bytes_read;
+  size_t		buffer_remaining;
+  unsigned char*	buffer;
+  Opened_File_State*	state;
+  int			index = (int)(file - 1);
+
+  if (file == 0) {
+    _debugprintf("[FILESYSTEM] Invalid file handle");
+    assert(0);
+    return -1;
+  }
+
+  state = &g_open_files[index];
+  assert(state->file.valid && "[FILESYSTEM] File not open");
+
+  remaining	   = size;
+  bytes_read	   = 0;
+  buffer	   = state->buffer;
+  buffer_remaining = sizeof(state->buffer);
+
+  while (remaining > 0) {
+    size_t	to_read	       = (remaining < buffer_remaining) ? remaining : buffer_remaining;
+    size_t	sectors_needed = (to_read + CD_SECTOR_SIZE - 1) / CD_SECTOR_SIZE;
+    size_t	cd_read	       = cd_file_read_sync_uncached(&state->file, buffer, sectors_needed * CD_SECTOR_SIZE);
+    size_t	to_copy	       = (to_read < cd_read) ? to_read : cd_read;
+
+    if (cd_read < 0) {
+      _debugprintf("[FILESYSTEM] CD read error");
+      return -1;
+    }
+
+    memcpy(data + bytes_read, buffer, to_copy);
+
+    bytes_read	     += to_copy;
+    remaining	     -= to_copy;
+    buffer	     += to_copy;
+    buffer_remaining -= to_copy;
+  }
+
+  state->file.cursor += size;
+  return (int)bytes_read;
+}
+
+void filesystem_close(File_Handle file)
+{
+  int			index = (int)(file - 1);
+  Opened_File_State*	state = &g_open_files[index];
+
+  if (file == 0) {
+    return; 
+  }
+
+  state->file.valid = 0;
+  state->file.cursor = 0;
+}
