@@ -70,7 +70,7 @@ static void _cd_file_issue_read(CD_File* file, unsigned char* buffer, size_t siz
   CdReadRetry(sector_count, (uint32_t*) buffer, CdlModeSpeed, 4);
 }
 
-void cd_file_seek(CD_File* file, uint8_t where, uint32_t sector_offset)
+void cd_file_seek(CD_File* file, uint8_t where, int32_t sector_offset)
 {
   CdlLOC new_file_loc;
 
@@ -86,7 +86,7 @@ void cd_file_seek(CD_File* file, uint8_t where, uint32_t sector_offset)
   } break;
   }
 
-  file->file_index.pos = new_file_loc;
+  file->file_index.pos = cdloc_add_sector_offset(new_file_loc, sector_offset);
 }
 
 size_t cd_file_read_sync_uncached(CD_File* file, unsigned char* buffer, size_t size)

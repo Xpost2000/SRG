@@ -57,7 +57,7 @@ size_t		cd_file_get_size(CD_File* file);
 size_t          cd_file_get_sector_total(CD_File* file);
 size_t		cd_file_get_memory_required(CD_File* file);
 size_t          cd_file_get_aligned_size(size_t size);
-void            cd_file_seek(CD_File* file, uint8_t where, uint32_t sector_offset);
+void            cd_file_seek(CD_File* file, uint8_t where, int32_t sector_offset);
 //
 // Because this is a low level module
 // this only works if it reads in CD_SECTOR_SIZEs
