@@ -38,6 +38,14 @@ File_Handle filesystem_open(const char* filepath)
   return 0;
 }
 
+size_t filesystem_get_file_size(File_Handle file)
+{
+  int index = (int)(file - 1);
+  Opened_File_State* state = &g_open_files[index];
+  assert(state->file.valid && "[FILESYSTEM] File not open");
+  return state->file_size_raw;
+}
+
 int filesystem_read(File_Handle file, unsigned char* data, size_t size)
 {
   size_t		remaining;

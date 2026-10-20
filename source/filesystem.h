@@ -27,6 +27,7 @@ typedef unsigned int File_Handle;
 
 File_Handle filesystem_open(const char* filepath);
 int         filesystem_read(File_Handle file, unsigned char* data, size_t size);
+size_t      filesystem_get_file_size(File_Handle file);
 void        filesystem_close(File_Handle file);
 
 #endif
