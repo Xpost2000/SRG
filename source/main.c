@@ -685,7 +685,7 @@ static void _custom_drawtext(Font* f, Vector2 xy, char* txt)
       tpage_cell_x = f->tim.image.x / 64;
       tpage_cell_y = f->tim.image.y / 256;
       /* setUV0(glyph, (uvoff.x - (tpage_cell_x * 256)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256); */
-      setUV0(glyph, (uvoff.x - (tpage_cell_x * 64)) % 256, (uvoff.y - (tpage_cell_y * 64)) % 256);
+      setUV0(glyph, (uvoff.x - (tpage_cell_x * 64)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256);
 
       if (showprint) {
 	_debugprintf("glyph(%c(%d)): %d, %d, %d, %d sample at [%d, %d] (tpage_cell_x: %d, tpage_real_x: %d, tpage_cell_y: %d, tpage_real_y: %d)",

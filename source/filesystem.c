@@ -5,7 +5,7 @@ typedef struct Opened_File_State Opened_File_State;
 
 struct Opened_File_State {
   CD_File	file;
-  unsigned char buffer[CD_SECTOR_SIZE * 2];
+  unsigned char buffer[CD_SECTOR_SIZE];
   uint32_t	file_size_aligned;
   uint32_t	file_size_raw;
 };
@@ -71,7 +71,7 @@ int filesystem_read(File_Handle file, unsigned char* data, size_t size)
   while (remaining > 0) {
     size_t	to_read	       = (remaining < sizeof(state->buffer)) ? remaining : sizeof(state->buffer);
     size_t	sectors_needed = (to_read + CD_SECTOR_SIZE - 1) / CD_SECTOR_SIZE;
-    _debugprintf("secotrs to read: %d, to read: %d, remaining %d", sectors_needed, to_read, remaining);
+    _debugprintf("sectors to read: %d, to read: %d, remaining %d", sectors_needed, to_read, remaining);
     size_t	cd_read	       = cd_file_read_sync_uncached(&state->file, buffer, sectors_needed * CD_SECTOR_SIZE);
     size_t	to_copy	       = (to_read < cd_read) ? to_read : cd_read;
 
@@ -80,6 +80,7 @@ int filesystem_read(File_Handle file, unsigned char* data, size_t size)
       return -1;
     }
 
+    _debugprintf("cd_read: %d", cd_read);
     memcpy(data + bytes_read, buffer, to_copy);
 
     bytes_read	     += to_copy;
@@ -87,7 +88,6 @@ int filesystem_read(File_Handle file, unsigned char* data, size_t size)
     buffer	     += to_copy;
   }
 
-  state->file.cursor += size;
   return (int)bytes_read;
 }
 
