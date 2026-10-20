@@ -8,7 +8,6 @@
 //
 
 #include "common.h"
-#include "cdfs.h"
 
 //
 // Interface

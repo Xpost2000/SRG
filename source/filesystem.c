@@ -1,3 +1,4 @@
+#include "cdfs.h"
 #include "filesystem.h"
 
 typedef struct Opened_File_State Opened_File_State;
