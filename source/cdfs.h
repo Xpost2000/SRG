@@ -26,8 +26,9 @@ typedef struct CD_File_Buffer CD_File_Buffer;
 
 struct CD_File {
   CdlFILE file_index;
+  CdlLOC  start;
+  CdlLOC  end;
   int     valid;
-  size_t  cursor;
 };
 
 //
@@ -47,6 +48,7 @@ struct CD_File_Buffer {
 void            cd_start(void);
 CD_File		cd_file_open(const char* fpath);
 size_t		cd_file_get_size(CD_File* file);
+size_t          cd_file_get_sector_total(CD_File* file);
 size_t		cd_file_get_memory_required(CD_File* file);
 size_t          cd_file_get_aligned_size(size_t size);
 //
