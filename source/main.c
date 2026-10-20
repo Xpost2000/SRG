@@ -17,7 +17,7 @@
 #include "common.h"
 
 #include "ps1_mem_limit.h"
-#include "cdfs.h"
+#include "filesystem.h"
 #include "memory_card.h"
 #include "input_pad.h"
 #include "input_action.h"
@@ -90,7 +90,7 @@ SVECTOR cube_verts[CUBE_VERTS] = {
   // +X face
   {  100,  100, -100, 0 },
   {  100, -100, -100, 0 },
-  {  100,  100,  100, 0 },
+  {  100, -100,  100, 0 },
 
   {  100, -100, -100, 0 },
   {  100, -100,  100, 0 },
@@ -685,7 +685,7 @@ static void _custom_drawtext(Font* f, Vector2 xy, char* txt)
       tpage_cell_x = f->tim.image.x / 64;
       tpage_cell_y = f->tim.image.y / 256;
       /* setUV0(glyph, (uvoff.x - (tpage_cell_x * 256)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256); */
-      setUV0(glyph, (uvoff.x - (tpage_cell_x * 64)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256);
+      setUV0(glyph, (uvoff.x - (tpage_cell_x * 64)) % 256, (uvoff.y - (tpage_cell_y * 64)) % 256);
 
       if (showprint) {
 	_debugprintf("glyph(%c(%d)): %d, %d, %d, %d sample at [%d, %d] (tpage_cell_x: %d, tpage_real_x: %d, tpage_cell_y: %d, tpage_real_y: %d)",
@@ -764,9 +764,13 @@ int main(int argc, const char **argv)
   // disc as before.
   //
   {
-    CD_File icon = cd_file_open("\\RES\\SAVICO.TIM");
-    if (icon.valid) {
-      cd_file_read_sync_uncached(&icon, g_iconfile, CD_SECTOR_SIZE);
+    File_Handle icon = filesystem_open("\\RES\\SAVICO.TIM");
+    if (icon != 0) {
+      int bytes = filesystem_read(icon, g_iconfile, CD_SECTOR_SIZE);
+      filesystem_close(icon);
+      if (bytes < 0) {
+        printf("[MAIN] icon file not found on disc\n");
+      }
     } else {
       printf("[MAIN] icon file not found on disc\n");
     }
@@ -776,16 +780,17 @@ int main(int argc, const char **argv)
   // Test code for loading font file
   //
   {
-    CD_File font = cd_file_open("\\RES\\FONT1.SRGFNT");
-    int nsectors = ((sizeof(g_fontfile)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
-    if (font.valid) {
-      cd_file_read_sync_uncached(&font, g_fontfile, nsectors * CD_SECTOR_SIZE);
-      g_font1 = font_load_from_memory(g_fontfile, sizeof(g_fontfile));
+    File_Handle font = filesystem_open("\\RES\\FONT1.SRGFNT");
+    if (font != 0) {
+      int bytes = filesystem_read(font, g_fontfile, sizeof(g_fontfile));
+      filesystem_close(font);
+      if (bytes >= 0) {
+        g_font1 = font_load_from_memory(g_fontfile, bytes);
 
-      //
-      // Upload to vram synchronusly picking some random point
-      //
-      {
+        //
+        // Upload to vram synchronusly picking some random point
+        //
+        {
 	// temporary for primitive
 	TIM_IMAGE tim = font_get_tim_info(&g_font1);
 	LoadImage(&(RECT) {
@@ -803,22 +808,26 @@ int main(int argc, const char **argv)
 
 	font_set_vram_information(&g_font1, (Vector2){960, 256}, (Vector2){0, 480});
 	DrawSync(1);
+        }
+      } else {
+        printf("[MAIN] font file not found on disc\n");
       }
     } else {
       printf("[MAIN] font file not found on disc\n");
     }
   }
   {
-    CD_File font = cd_file_open("\\RES\\FONT2.SRGFNT");
-    int nsectors = ((sizeof(g_fontfile)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
-    if (font.valid) {
-      cd_file_read_sync_uncached(&font, g_fontfile, nsectors * CD_SECTOR_SIZE);
-      g_font2 = font_load_from_memory(g_fontfile, sizeof(g_fontfile));
+    File_Handle font = filesystem_open("\\RES\\FONT2.SRGFNT");
+    if (font != 0) {
+      int bytes = filesystem_read(font, g_fontfile, sizeof(g_fontfile));
+      filesystem_close(font);
+      if (bytes >= 0) {
+        g_font2 = font_load_from_memory(g_fontfile, bytes);
 
-      //
-      // Upload to vram synchronusly picking some random point
-      //
-      {
+        //
+        // Upload to vram synchronusly picking some random point
+        //
+        {
 	// temporary for primitive
 	TIM_IMAGE tim = font_get_tim_info(&g_font2);
 	LoadImage(&(RECT) {
@@ -836,6 +845,9 @@ int main(int argc, const char **argv)
 
 	font_set_vram_information(&g_font2, (Vector2){960, 256 + g_font1.tim.image.height}, (Vector2){0, 481});
 	DrawSync(1);
+        }
+      } else {
+        printf("[MAIN] font file not found on disc\n");
       }
     } else {
       printf("[MAIN] font file not found on disc\n");
@@ -865,50 +877,58 @@ int main(int argc, const char **argv)
   // loading mesh files
   //
   {
-    CD_File file = cd_file_open("\\RES\\M1.BIN");
-    int nsectors = ((sizeof(g_meshfile1)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
-    if (file.valid) {
-      cd_file_read_sync_uncached(&file, g_meshfile1, nsectors * CD_SECTOR_SIZE);
+    File_Handle file = filesystem_open("\\RES\\M1.BIN");
+    if (file != 0) {
+      int bytes = filesystem_read(file, g_meshfile1, sizeof(g_meshfile1));
+      filesystem_close(file);
+      if (bytes >= 0) {
 
-      //
-      // setup mesh from cd file memory
-      //
-      {
-	uint8_t* cursor = g_meshfile1;
-	g_m1.vertex_count = *((uint16_t*)cursor);
+        //
+        // setup mesh from cd file memory
+        //
+        {
+          uint8_t* cursor = g_meshfile1;
+          g_m1.vertex_count = *((uint16_t*)cursor);
 
-	cursor += 2;
-	g_m1.vertices = (SVECTOR*)cursor;
+          cursor += 2;
+          g_m1.vertices = (SVECTOR*)cursor;
 
-	cursor += sizeof(SVECTOR) * g_m1.vertex_count;
-	g_m1.normals = (SVECTOR*)cursor;
+          cursor += sizeof(SVECTOR) * g_m1.vertex_count;
+          g_m1.normals = (SVECTOR*)cursor;
+        }
+        printf("[MESH] vtxcount=%d\n", g_m1.vertex_count);
+      } else {
+        printf("[MAIN] model file not found on disk\n");
       }
-      printf("[MESH] vtxcount=%d\n", g_m1.vertex_count);
     } else {
       printf("[MAIN] model file not found on disk\n");
     }
   }
 
   {
-    CD_File file = cd_file_open("\\RES\\M2.BIN");
-    int nsectors = ((sizeof(g_meshfile2)+CD_SECTOR_SIZE-1) / CD_SECTOR_SIZE);
-    if (file.valid) {
-      cd_file_read_sync_uncached(&file, g_meshfile2, nsectors * CD_SECTOR_SIZE);
+    File_Handle file = filesystem_open("\\RES\\M2.BIN");
+    if (file != 0) {
+      int bytes = filesystem_read(file, g_meshfile2, sizeof(g_meshfile2));
+      filesystem_close(file);
+      if (bytes >= 0) {
 
-      //
-      // setup mesh from cd file memory
-      //
-      {
-	uint8_t* cursor = g_meshfile2;
-	g_m2.vertex_count = *((uint16_t*)cursor);
+        //
+        // setup mesh from cd file memory
+        //
+        {
+          uint8_t* cursor = g_meshfile2;
+          g_m2.vertex_count = *((uint16_t*)cursor);
 
-	cursor += 2;
-	g_m2.vertices = (SVECTOR*)cursor;
+          cursor += 2;
+          g_m2.vertices = (SVECTOR*)cursor;
 
-	cursor += sizeof(SVECTOR) * g_m2.vertex_count;
-	g_m2.normals = (SVECTOR*)cursor;
+          cursor += sizeof(SVECTOR) * g_m2.vertex_count;
+          g_m2.normals = (SVECTOR*)cursor;
+        }
+        printf("[MESH] vtxcount=%d\n", g_m2.vertex_count);
+      } else {
+        printf("[MAIN] model file not found on disk\n");
       }
-      printf("[MESH] vtxcount=%d\n", g_m2.vertex_count);
     } else {
       printf("[MAIN] model file not found on disk\n");
     }
