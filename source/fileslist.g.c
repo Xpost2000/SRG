@@ -4,7 +4,7 @@
 // Generated from: C:\Users\jerry\project-repositories\SRG\source\iso.xml
 //
 // String table containing all CD file paths.
-// Indexed by FIDX__... macros defined in fileslist.h
+// Indexed by FIDX__... macros defined in fileslist.g.h
 
 
 const char* file_strings_table[] = 

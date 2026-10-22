@@ -18,8 +18,8 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py")
 	add_custom_command(
-		OUTPUT "${CMAKE_SOURCE_DIR}/source/fileslist.h"
-			     "${CMAKE_SOURCE_DIR}/source/fileslist.c"
+		OUTPUT "${CMAKE_SOURCE_DIR}/source/fileslist.g.h"
+			     "${CMAKE_SOURCE_DIR}/source/fileslist.g.c"
 					 COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py"
 			     "${CMAKE_SOURCE_DIR}/iso.xml"
 		DEPENDS "${CMAKE_SOURCE_DIR}/iso.xml"
@@ -44,7 +44,7 @@ psn00bsdk_add_executable(game GPREL
 					source/audio.c
 					source/mml.c
 					source/ps1_mem_limit.c
-					source/fileslist.c)
+					source/fileslist.g.c)
 
 include(cmake/audio.cmake)
 

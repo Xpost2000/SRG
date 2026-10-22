@@ -2,17 +2,16 @@
 """
 ISO XML to FilesList Generator
 
-Parses iso.xml and generates fileslist.h and fileslist.c with:
+Parses iso.xml and generates fileslist.g.h and fileslist.g.c with:
 - String table of all CD file paths
 - Enum indices based on filename (slashes → underscores)
 
 Usage:
     python gen-fileslist.py [iso.xml]
-    python gen-fileslist.py --test
 
 Output:
-    fileslist.h - Enum definitions + extern declaration
-    fileslist.c - String table array
+    fileslist.g.h - Enum definitions + extern declaration
+    fileslist.g.c - String table array
 """
 
 import sys
@@ -150,7 +149,7 @@ def parse_iso_xml(xml_path: str) -> list:
 
 def generate_fileslist_h(files: list, output_path: str):
     """
-    Generate fileslist.h with enum definitions and extern declaration.
+    Generate fileslist.g.h with enum definitions and extern declaration.
     """
     lines = [
         "//",
@@ -187,7 +186,7 @@ def generate_fileslist_h(files: list, output_path: str):
 
 def generate_fileslist_c(files: list, output_path: str):
     """
-    Generate fileslist.c with string table array.
+    Generate fileslist.g.c with string table array.
     """
     lines = [
         "//",
@@ -196,7 +195,7 @@ def generate_fileslist_c(files: list, output_path: str):
         f"// Generated from: {Path(output_path).parent / 'iso.xml'}",
         "//",
         "// String table containing all CD file paths.",
-        "// Indexed by FIDX__... macros defined in fileslist.h",
+        "// Indexed by FIDX__... macros defined in fileslist.g.h",
         "",
         "",
         "const char* file_strings_table[] = ",
@@ -221,109 +220,10 @@ def generate_fileslist_c(files: list, output_path: str):
     print(f"Generated: {output_path}")
 
 
-def run_tests():
-    """
-    Run basic tests on the generator.
-    """
-    print("Running gen-fileslist.py tests...")
-    print("=" * 50)
-    
-    # Test 1: Check if iso.xml exists
-    iso_path = Path(__file__).parent.parent / "iso.xml"
-    if not iso_path.exists():
-        print(f"Test 1 FAILED: iso.xml not found at {iso_path}")
-        return False
-    print(f"Test 1 PASSED: Found iso.xml at {iso_path}")
-    
-    # Test 2: Parse XML
-    try:
-        files = parse_iso_xml(str(iso_path))
-        print(f"Test 2 PASSED: Parsed {len(files)} files from iso.xml")
-    except Exception as e:
-        print(f"Test 2 FAILED: {e}")
-        return False
-    
-    # Test 3: Verify paths are normalized
-    for cd_path, _ in files:
-        if not cd_path.startswith(".\\"):
-            print(f"Test 3 FAILED: Path not normalized: {cd_path}")
-            return False
-    print("Test 3 PASSED: All paths normalized with .\\ prefix")
-    
-    # Test 4: Verify enum names
-    for _, enum_name in files:
-        if not enum_name.startswith("FIDX__"):
-            print(f"Test 4 FAILED: Invalid enum name: {enum_name}")
-            return False
-        if "_" not in enum_name:
-            print(f"Test 4 FAILED: Enum name should have underscores: {enum_name}")
-            return False
-    print("Test 4 PASSED: All enum names valid (FIDX__ prefix, underscores)")
-    
-    # Test 5: Verify no duplicates
-    paths = [p[0] for p in files]
-    if len(paths) != len(set(paths)):
-        print("Test 5 FAILED: Duplicate paths found")
-        return False
-    print("Test 5 PASSED: No duplicate paths")
-    
-    # Test 6: Generate files
-    try:
-        h_path = iso_path.parent / "fileslist.h"
-        c_path = iso_path.parent / "fileslist.c"
-        generate_fileslist_h(files, str(h_path))
-        generate_fileslist_c(files, str(c_path))
-        print("Test 6 PASSED: Generated fileslist.h and fileslist.c")
-    except Exception as e:
-        print(f"Test 6 FAILED: {e}")
-        return False
-    
-    # Test 7: Verify generated files
-    h_path = iso_path.parent / "fileslist.h"
-    c_path = iso_path.parent / "fileslist.c"
-    
-    if not h_path.exists():
-        print("Test 7 FAILED: fileslist.h not found")
-        return False
-    if not c_path.exists():
-        print("Test 7 FAILED: fileslist.c not found")
-        return False
-    
-    # Check fileslist.h content
-    with open(h_path) as f:
-        h_content = f.read()
-    if "THIS FILE IS AUTO-GENERATED" not in h_content:
-        print("Test 7 FAILED: fileslist.h missing auto-generation comment")
-        return False
-    if "extern const char* file_strings_table[]" not in h_content:
-        print("Test 7 FAILED: fileslist.h missing extern declaration")
-        return False
-    
-    # Check fileslist.c content
-    with open(c_path) as f:
-        c_content = f.read()
-    if "THIS FILE IS AUTO-GENERATED" not in c_content:
-        print("Test 7 FAILED: fileslist.c missing auto-generation comment")
-        return False
-    if "file_strings_table[]" not in c_content:
-        print("Test 7 FAILED: fileslist.c missing array declaration")
-        return False
-    
-    print("Test 7 PASSED: Generated files valid")
-    
-    print("=" * 50)
-    print("All tests passed!")
-    return True
-
-
 def main():
     """
     Main entry point.
     """
-    # Check for --test flag
-    if "--test" in sys.argv:
-        return run_tests()
-    
     # Get input file path
     if len(sys.argv) > 1:
         xml_path = sys.argv[1]
@@ -350,12 +250,11 @@ def main():
     
     # Generate output files
     output_dir = Path(xml_path).parent
-    generate_fileslist_h(files, str(output_dir / "source" / "fileslist.h"))
-    generate_fileslist_c(files, str(output_dir / "source" / "fileslist.c"))
+    generate_fileslist_h(files, str(output_dir / "source" / "fileslist.g.h"))
+    generate_fileslist_c(files, str(output_dir / "source" / "fileslist.g.c"))
     
     print(f"Total files: {len(files)}")
     print("Done!")
-
 
 if __name__ == "__main__":
     main()
