@@ -8,20 +8,43 @@ project(
 	HOMEPAGE_URL "www.no.com"
 )
 
+#
+# Generate fileslist from iso.xml at build time
+# This creates a string table with enums for indexing all the CD files
+#
+# Could also be read for tools as well
+#
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py")
+	add_custom_command(
+		OUTPUT "${CMAKE_SOURCE_DIR}/source/fileslist.g.h"
+			     "${CMAKE_SOURCE_DIR}/source/fileslist.g.c"
+					 COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py"
+			     "${CMAKE_SOURCE_DIR}/iso.xml"
+		DEPENDS "${CMAKE_SOURCE_DIR}/iso.xml"
+		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+		COMMENT "Generating fileslist from iso.xml"
+	)
+	add_custom_target(generate-fileslist DEPENDS source/fileslist.h source/fileslist.c)
+endif()
+
 psn00bsdk_add_executable(game GPREL
-				  source/main.c
-				  source/cdfs.c
-				  source/input_pad.c
-				  source/memory_arena.c
-				  source/memory_card.c
-				  source/input_action.c
-				  source/render.c
-				  source/font.c
-				  source/serializer.c
-				  source/spu.c
-				  source/audio.c
-				  source/mml.c
-				  source/ps1_mem_limit.c)
+					source/main.c
+					source/cdfs.c
+					source/filesystem.c
+					source/input_pad.c
+					source/memory_arena.c
+					source/memory_card.c
+					source/input_action.c
+					source/render.c
+					source/font.c
+					source/serializer.c
+					source/spu.c
+					source/audio.c
+					source/mml.c
+					source/ps1_mem_limit.c
+					source/fileslist.g.c)
 
 include(cmake/audio.cmake)
 
