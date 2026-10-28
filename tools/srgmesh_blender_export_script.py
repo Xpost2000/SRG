@@ -9,7 +9,7 @@ import bpy;
 import bmesh;
 import os;
 import sys
-import bin_helpers; # need to check if blender import works.
+from bin_helpers import *; # need to check if blender import works.
 from pathlib import Path;
 
 #

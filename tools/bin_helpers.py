@@ -114,12 +114,12 @@ def read_TIM_info(f):
     clut_contents = b""
     # contains clut (just in-case though all the images we use have a clut)
     if (flags & 0x8) > 0:
-        clut_contents = f.read(clut_width * clut_height * 2);
         clut_length = read_u32(f);
         clut_x = read_u16(f);
         clut_y = read_u16(f);
         clut_width = read_u16(f);
         clut_height = read_u16(f);
+        clut_contents = f.read(clut_width * clut_height * 2);
 
     image_length = read_u32(f);
     image_x = read_u16(f);

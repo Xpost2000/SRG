@@ -17,8 +17,28 @@ Output:
 import sys
 import os
 import xml.etree.ElementTree as ET
-import bin_helpers
+from bin_helpers import *
 from pathlib import Path
+
+def fileext_indicates_image(ext):
+    return ".tim" == ext or ".srgfnt" == ext;
+
+
+def get_texture_image_height_from_file(f):
+    (_, _, filepath) = f;
+    fileext = get_fileext(filepath);
+    with open(filepath, "rb") as f:
+        if ".tim" == fileext:
+            (_, cx, cy, cw, ch, _, il, ix, iy, iw, ih, _) = read_TIM_info(f);
+            return ih;
+        elif ".srgfnt" == fileext:
+            read_SRGFONT_info(f);
+            (_, cx, cy, cw, ch, _, il, ix, iy, iw, ih, _) = read_TIM_info(f);
+            return ih;
+    return None;
+
+def get_fileext(filepath):
+    return Path(filepath).suffix.lower();
 
 def normalize_path(path: str) -> str:
     """
@@ -235,8 +255,12 @@ def generate_fileslist_c(files: list, output_path: str):
         "{",
     ])
 
-    for i, (_, enum_name, filepath) in enumerate(files):
+    files_containing_textures = [f for f in files if f[2] and fileext_indicates_image(get_fileext(f[2]))];
+    ordered_files_containing_texture = sorted(files_containing_textures, reverse = False, key = get_texture_image_height_from_file);
+
+    for i, (_, enum_name, filepath) in enumerate(ordered_files_containing_texture):
         comma = "," if i < len(files) - 1 else ""
+        print(f"image height: ", get_texture_image_height_from_file((None, None, filepath)));
         lines.append(f'    {enum_name}{comma} // {filepath}')
 
     lines.extend([
