@@ -1,7 +1,20 @@
+#include <psxgpu.h>
+#include "filesystem.h"
 #include "texture_manager.h"
 #include "fileslist.g.h"
 
-#define MAX_TEXTURES (256)
+#define MAX_TEXTURES		(256)
+
+//
+// Matches the framebuffer allocation scheme,
+// CLUT entries are packed under the two framebuffers.
+//
+#define VRAM_ALLOC_START_X	(320)
+#define VRAM_ALLOC_START_Y	(0)
+#define VRAM_ALLOC_END_X	(1024)
+#define VRAM_ALLOC_END_Y	(512)
+#define VRAM_CLUT_ALLOC_START_X (0)
+#define VRAM_CLUT_ALLOC_START_Y (480)
 
 static Vector2 g_vram_cursor = {};
 static Vector2 g_vram_permenant_cursor = {};
@@ -14,6 +27,8 @@ static uint32_t		g_permenant_texture_count = 0;
 static uint32_t		g_texture_count		  = 0;
 
 static void _texture_manager_execute_load(Texture_Source* output_texture_source, int32_t texture_id);
+static void _texture_manager_pack_image_data_into_vram(uint32_t* pixel_data, RECT* rectangle);
+static void _texture_manager_pack_clut_data_into_vram(uint32_t* clut_pixel_data, RECT* clut_rectangle);
 
 void texture_manager_clear_all(void)
 {
@@ -36,7 +51,7 @@ Texture_Handle texture_manager_load_request(uint8_t load_priority, int32_t textu
     result	 = ((MAX_TEXTURES-1) - g_texture_count++)+1;
   } break;
   default: {
-    assert(0 && "[TEXTURE_MANAGER] invalid texture priority");
+    assert(0 && "[TEXTURE-MANAGER] invalid texture priority");
     return 0;
   } break;
   }
@@ -45,17 +60,44 @@ Texture_Handle texture_manager_load_request(uint8_t load_priority, int32_t textu
   return result;
 }
 
+static void _texture_manager_pack_image_data_into_vram(uint32_t* pixel_data, RECT* rectangle)
+{
+  assert(0 && "[TEXTURE_MANAGER] TODO _texture_manager_pack_image_data_into_vram");
+}
+
+static void _texture_manager_pack_clut_data_into_vram(uint32_t* clut_pixel_data, RECT* clut_rectangle)
+{
+  assert(0 && "[TEXTURE_MANAGER] TODO _texture_manager_pack_clut_data_into_vram");
+}
+
 static void _texture_manager_execute_load(Texture_Source* output_texture_source, int32_t texture_id)
 {
+  File_Handle	texture_file;
   //
   // TODO(jerry):
   // use a shared scratch / per-frame arena to hold
-  // this instead of a static allocation since this is 128KiB!
-  //
+  // this instead of a static allocation since this is 64KiB!
   //
   // Fortunately this is a stack variable.
   //
-  uint8_t g_texture_load_buffer[256*256*2];
+  // This is large enough to fit a 128x256 16bpp, 256*256 8bpp, 512*256 4bpp
+  // which is hopefully good enough for everyone's needs.
+  //
+  uint8_t	texture_load_buffer[256*256];
+  TIM_IMAGE	tim_image;
+  int           load_result;
+
+  texture_file = filesystem_open(file_strings_table[texture_id]);
+  assert(texture_file && "[TEXTURE-MANAGER] failed to load texture file?");
+
+  filesystem_read(texture_file, texture_load_buffer, sizeof(texture_load_buffer));
+  filesystem_close(texture_file);
+
+  load_result = GetTimInfo((uint32_t*) texture_load_buffer, &tim_image);
+  assert((load_result == 0) && "[TEXTURE_MANAGER] GetTimInfo failed on this image.");
+  
+  _texture_manager_pack_image_data_into_vram(tim_image.paddr, tim_image.prect);
+  _texture_manager_pack_clut_data_into_vram(tim_image.caddr, tim_image.crect);
 }
 
 void texture_manager_execute_all_loads(void)
