@@ -50,6 +50,13 @@ void           texture_manager_clear_all(void);
 // Send a load request for a texture file as indicated by texture_id,
 // so we cannot load unknown images. It will also handle CLUT allocation.
 //
+//
+// TODO(jerry):
+// What do I do about the images from a font? As the main appeal of this system
+// is that it is possible to pack them "perfectly", however there's no path for
+// handling fonts currently even though they should actually be packed as textures
+// just like everything else.
+//
 Texture_Handle texture_manager_load_request(uint8_t load_priority, int32_t texture_id);
 
 //

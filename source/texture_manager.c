@@ -67,7 +67,7 @@ static void _texture_manager_pack_image_data_into_vram(uint32_t* pixel_data, REC
 
 static void _texture_manager_pack_clut_data_into_vram(uint32_t* clut_pixel_data, RECT* clut_rectangle)
 {
-  assert(0 && "[TEXTURE_MANAGER] TODO _texture_manager_pack_clut_data_into_vram");
+  assert(0 && "[TEXTURE_MANAGER] TODO _texture_manager_pack_image_data_into_vram");
 }
 
 static void _texture_manager_execute_load(Texture_Source* output_texture_source, int32_t texture_id)

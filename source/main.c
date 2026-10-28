@@ -793,6 +793,7 @@ int main(int argc, const char **argv)
         {
 	// temporary for primitive
 	TIM_IMAGE tim = font_get_tim_info(&g_font1);
+#if 0
 	LoadImage(&(RECT) {
 	  .x = 960,
 	  .y = 256,
@@ -807,6 +808,11 @@ int main(int argc, const char **argv)
 	}, tim.caddr);
 
 	font_set_vram_information(&g_font1, (Vector2){960, 256}, (Vector2){0, 480});
+#else
+	  texture_manager_load_request_ex(TEXTURE_LOAD_PRIORITY_PERMENANT,
+					  texture_manager_packet_from_tim_image(tim));
+
+#endif
 	DrawSync(1);
         }
       } else {
