@@ -9,6 +9,7 @@ pushd "%~dp0"
 
 CALL "%~dp0setvars.bat"
 
+REM Configure CMake (includes fileslist generation as custom target)
 cmake --preset default .
 cmake --build ./run-tree
 
