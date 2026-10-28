@@ -17,8 +17,8 @@ Output:
 import sys
 import os
 import xml.etree.ElementTree as ET
+import bin_helpers
 from pathlib import Path
-
 
 def normalize_path(path: str) -> str:
     """

@@ -7,9 +7,9 @@
 
 import bpy;
 import bmesh;
-import struct
 import os;
 import sys
+import bin_helpers; # need to check if blender import works.
 from pathlib import Path;
 
 #
@@ -25,52 +25,6 @@ OUTPUT_FILE_NAME = SCRIPT_DIR / (args[0] if args else "out.bin");
 #
 PSX_SRG_UNIT_SCALE_FACTOR = 150; 
 PSX_GTE_UNIT_SCALE_FACTOR = 4096;
-
-#
-# Binary helpers for python...
-#
-def write_s8(f, v):  
-    f.write(struct.pack('<b', v));
-def write_u8(f, v):  
-    f.write(struct.pack('<B', v));
-def write_s16(f, v): 
-    f.write(struct.pack('<h', v));
-def write_u16(f, v): 
-    f.write(struct.pack('<H', v));
-def write_s32(f, v): 
-    f.write(struct.pack('<i', v));
-def write_u32(f, v): 
-    f.write(struct.pack('<I', v));
-def write_s64(f, v): 
-    f.write(struct.pack('<q', v));
-def write_u64(f, v): 
-    f.write(struct.pack('<Q', v));
-def write_f32(f, v): 
-    f.write(struct.pack('<f', v));
-def write_f64(f, v): 
-    f.write(struct.pack('<d', v));
-
-#
-# Helpers for writing the PSYQ types
-#
-def write_VECTOR(f, x, y, z):
-    x = int(x);
-    y = int(y);
-    z = int(z);
-    
-    write_s32(f, x);
-    write_s32(f, y);
-    write_s32(f, z);
-    
-def write_SVECTOR(f, x, y, z):
-    x = int(x);
-    y = int(y);
-    z = int(z);
-    
-    write_s16(f, x);
-    write_s16(f, y);
-    write_s16(f, z);
-    write_s16(f, 0);
 
 obj = bpy.context.object.data;
 
