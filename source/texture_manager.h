@@ -56,8 +56,7 @@ Texture_Handle texture_manager_load_request(uint8_t load_priority, int32_t textu
 // Process all texture loading requests (the reason why is because we need to know
 // all the textures that will be loaded, so that we can pack them "optimally")
 //
-Texture_Handle  texture_manager_execute_all_loads(void);
-
+void            texture_manager_execute_all_loads(void);
 Texture_Source* texture_manager_get_texture_source(Texture_Handle handle);
 
 #endif
