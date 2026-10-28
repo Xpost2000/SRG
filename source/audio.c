@@ -1,7 +1,7 @@
 #include "audio.h"
 #include "mml.h"
 #include "spu.h"
-#include "cdfs.h"
+#include "filesystem.h"
 
 //
 // .VAG header, 48 bytes, as psxavenc writes it. The size and sample rate are
@@ -215,28 +215,38 @@ static int      _song_is_valid(Audio_Song song);
 // audio holds no load buffer at all and there is no cap on file size beyond
 // free RAM. malloc returns word-aligned memory, which the SPU DMA needs.
 //
+// It goes through filesystem.h like every other load. The CD only reads
+// whole 2048-byte sectors; filesystem.c reads them into its own one-sector
+// bounce buffer and copies out just the file's bytes, so the block here is
+// the file's exact size rather than rounded up to a sector.
+//
 // Returns NULL on failure. One spare byte is allocated so text can be zero
 // terminated.
 //
 static uint8_t* _file_load(const char* cd_path, size_t* size)
 {
-  CD_File file = cd_file_open(cd_path);
+  File_Handle file = filesystem_open(cd_path); // logs the failure itself
 
-  if (!file.valid) {
-    _debugprintf("[AUDIO] not on disc: %s", cd_path);
+  if (!file) {
     return NULL;
   }
 
-  size_t   read_size = cd_file_get_memory_required(&file);
-  uint8_t* bytes     = (uint8_t*) malloc(read_size + 1);
+  *size = filesystem_get_file_size(file);
+  uint8_t* bytes = (uint8_t*) malloc(*size + 1);
 
   if (!bytes) {
-    _debugprintf("[AUDIO] out of RAM loading %s (%d bytes)", cd_path, read_size);
+    _debugprintf("[AUDIO] out of RAM loading %s (%d bytes)", cd_path, *size);
+    filesystem_close(file);
     return NULL;
   }
 
-  cd_file_read_sync_uncached(&file, bytes, read_size);
-  *size = cd_file_get_size(&file);
+  int bytes_read = filesystem_read(file, bytes, *size);
+  filesystem_close(file);
+
+  if (bytes_read < 0) {
+    free(bytes);
+    return NULL;
+  }
   return bytes;
 }
 
