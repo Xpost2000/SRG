@@ -1,0 +1,117 @@
+The main goal is to attempt to centralize all the resource loading in the engine so that we can
+try "in some sense" to optimize the rendering operations.
+
+The resource manager contains multiple load functions which look like:
+------------------
+
+//
+// fonts are expected to have an "essentially"
+// permenant lifetime, but therefore they are actually load_texture priority permenant
+//
+void resource_manager_load_font(int file_id);
+
+//
+// Textures need a load priority
+//
+void resource_manager_load_texture(int load_priority, int file_id);
+
+//
+// Models also need a load priority
+//
+//
+// They also need to transitively load their textures as well (and fix back references)
+//
+void resource_manager_load_mesh(int load_priority, int file_id);
+
+//
+// loading a sound is kind of permenant
+// interface is here for consistency
+//
+void resource_manager_load_sound(int file_id);
+
+void resource_manager_execute_loads();
+
+------------------
+The internal state of the resource manager is basically just a loading queue:
+------------------
+
+#define MAX_LOADABLE_RESOURCES (512)
+
+struct Load_List_Entry {
+  int32_t load_priority;
+  int32_t file_id;
+  int16_t next; // ptr + 1, if 0 it is null/end, but -1 (0xFFFF) is a sentinel indicating free
+};
+
+struct Load_List {
+  uint16_t start;
+  uint16_t end;
+};
+
+Load_List empty_list = {-1, -1};
+
+//
+// shared pool
+//
+Load_List_Entry entries[MAX_LOADABLE_RESOURCES];
+
+Load_List font_requests = empty_list;
+Load_List texture_requests = empty_list;
+Load_List model_requests = empty_list;
+Load_List sound_requests = empty_list;
+
+
+//
+// init the linked list, if exists, change the singly linked list end
+//
+void load_list_push(Load_List* list, int32_t load_priority, int32_t fileid);
+
+------------------
+and the implementation could look something like this:
+------
+
+void resource_manager_load_font(int load_priority, int file_id)
+{
+    load_list_push(&font_requests, load_priority, file_id);
+}
+
+void resource_manager_load_texture(int load_priority, int file_id)
+{
+    load_list_push(&texture_requests, load_priority, file_id);
+}
+
+void resource_manager_load_mesh(int load_priority, int file_id)
+{
+    load_list_push(&model_requests, load_priority, file_id);
+}
+
+void resource_manager_load_sound(int file_id)
+{
+    //
+    // it's a once only load so the memory it needs to load from is cooked
+    // straight away.
+    //
+    load_list_push(&sound_requests, low_priority, file_id);
+}
+
+void resource_manager_execute_loads()
+{
+  //
+  // forcefully order by any resources that contain references to textures
+  // (this is to say, we must pre-order them by whatever the texture containing contents are)
+  //
+  for (auto &file_containing_texture_id : ordered_texture_containing_files_list) {
+    auto request = resource_manager_get_request_for_file(file_containing_texture_id);
+
+    //
+    // I can do the read and whatever texture uploads I need immediately
+    // (I can escape hatch and call the main vram_loader packing)
+    //
+    do_load(request);
+    markloaded/fulfilled
+  }
+
+  foreach (request list in not loaded(request_list)) {
+    do_load(request);
+  }
+}
