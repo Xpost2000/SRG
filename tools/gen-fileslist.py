@@ -55,7 +55,7 @@ def parse_iso_xml(xml_path: str) -> list:
     """
     Parse iso.xml and extract all file entries with full paths.
     
-    Returns sorted list of (normalized_path, cd_path) tuples.
+    Returns sorted list of (cd_path, enum_name, diskpath) tuples.
     """
     tree = ET.parse(xml_path)
     root = tree.getroot()
@@ -106,6 +106,8 @@ def parse_iso_xml(xml_path: str) -> list:
         
         if elem.tag == "file":
             name = elem.get("name")
+            source = elem.get("source")
+
             if name:
                 # Build full path from stack (most recent dirs first)
                 if dir_stack:
@@ -115,7 +117,12 @@ def parse_iso_xml(xml_path: str) -> list:
                 
                 cd_path = normalize_path(full_path)
                 enum_name = get_enum_name(full_path)
-                results.append((cd_path, enum_name))
+                diskpath = "";
+                if "${PROJECT_SOURCE_DIR}" in source:
+                    diskpath = source.replace("${PROJECT_SOURCE_DIR}", sys.argv[1]);
+                elif "${CMAKE_BINARY_DIR}" in source:
+                    diskpath = source.replace("${CMAKE_BINARY_DIR}", sys.argv[2]);
+                results.append((cd_path, enum_name, diskpath))
         
         elif elem.tag == "dir":
             dir_name = elem.get("name")
@@ -157,6 +164,7 @@ def generate_fileslist_h(files: list, output_path: str):
         "//",
         f"// Generated from: {Path(output_path).parent / 'iso.xml'}",
         "//",
+        "#include <stdint.h>",
         "",
         "",
     ]
@@ -174,6 +182,12 @@ def generate_fileslist_h(files: list, output_path: str):
         "// String table for file paths (indexed by enum above)",
         "",
         "extern const char* file_strings_table[];",
+        "",
+        "// ID table for files that contain textures within them",
+        "// this is used so that we can have a simpler texture packing at runtime",
+        "// that is generally not super duper wasteful.",
+        "",
+        "extern uint16_t texture_ordered_file_id_table[];",
         "",
         "",
     ])
@@ -202,12 +216,27 @@ def generate_fileslist_c(files: list, output_path: str):
         "{",
     ]
     
-    for i, (cd_path, enum_name) in enumerate(files):
+    for i, (cd_path, enum_name, filepath) in enumerate(files):
         # Escape backslashes for C string
         escaped_path = cd_path.replace("\\", "\\\\")
         comma = "," if i < len(files) - 1 else ""
         lines.append(f'    "{escaped_path}"{comma}')
     
+    lines.extend([
+        "};",
+        "",
+        "",
+    ])
+
+    lines.extend([
+        "uint16_t texture_ordered_file_id_table[] = ",
+        "{",
+    ])
+
+    for i, (_, enum_name, filepath) in enumerate(files):
+        comma = "," if i < len(files) - 1 else ""
+        lines.append(f'    "{enum_name}"{comma}')
+
     lines.extend([
         "};",
         "",
