@@ -81,3 +81,65 @@ def read_SVECTOR(f):
         read_s16(f, z),
         read_s16(f, 0)
     )
+
+# to read a full SRG font
+# read_SRGFONT_info(f); read_TIM_info(f);
+def read_SRGFONT_info(f):
+    glyph_width  = read_s8(f);
+    glyph_height = read_s8(f);
+    columns      = read_s8(f);
+    rows         = read_s8(f);
+    glyphmap     = f.read(256);
+    return (
+        glyph_width ,
+        glyph_height,
+        columns     ,
+        rows        ,
+        glyphmap
+    );
+    
+def read_TIM_info(f):
+    # tag
+    read_u8(f);
+    # version
+    read_u8(f);
+    # pad 0
+    read_u8(f);
+    # pad 1
+    read_u8(f);
+
+    flags = read_u32(f);
+
+    clut_length = clut_x = clut_y = clut_width = clut_height = 0
+    clut_contents = b""
+    # contains clut (just in-case though all the images we use have a clut)
+    if (flags & 0x8) > 0:
+        clut_contents = f.read(clut_width * clut_height * 2);
+        clut_length = read_u32(f);
+        clut_x = read_u16(f);
+        clut_y = read_u16(f);
+        clut_width = read_u16(f);
+        clut_height = read_u16(f);
+
+    image_length = read_u32(f);
+    image_x = read_u16(f);
+    image_y = read_u16(f);
+    image_width = read_u16(f);
+    image_height = read_u16(f);
+    image_contents = f.read(image_width * image_height * 2);
+
+    return (
+        clut_length,
+        clut_x,
+        clut_y,
+        clut_width,
+        clut_height,
+        clut_contents,
+        image_length,
+        image_x,
+        image_y,
+        image_width,
+        image_height,
+        image_contents
+    )
+    
