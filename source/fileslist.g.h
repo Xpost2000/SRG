@@ -3,6 +3,7 @@
 //
 // Generated from: C:/Users/jerry/project-repositories/SRG/source/iso.xml
 //
+#include <stdint.h>
 
 
 #define FIDX__AUDIO_BASS_VAG   (0)
@@ -26,4 +27,10 @@
 // String table for file paths (indexed by enum above)
 
 extern const char* file_strings_table[];
+
+// ID table for files that contain textures within them
+// this is used so that we can have a simpler texture packing at runtime
+// that is generally not super duper wasteful.
+
+extern uint16_t texture_ordered_file_id_table[];
 

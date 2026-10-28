@@ -20,9 +20,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py")
 	add_custom_command(
 		OUTPUT "${CMAKE_SOURCE_DIR}/source/fileslist.g.h"
 			     "${CMAKE_SOURCE_DIR}/source/fileslist.g.c"
-					 COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py" "${PROJECT_SOURCE_DIR}" "${CMAKE_BINARY_DIR}"
-			     "${CMAKE_SOURCE_DIR}/iso.xml"
-		DEPENDS "${CMAKE_SOURCE_DIR}/iso.xml"
+					 COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py"
+					 "${CMAKE_SOURCE_DIR}/iso.xml"
+					 "${PROJECT_SOURCE_DIR}"
+					 "${CMAKE_BINARY_DIR}"
+		DEPENDS "${CMAKE_SOURCE_DIR}/iso.xml" "${PROJECT_SOURCE_DIR}/tools/gen-fileslist.py"
 		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 		COMMENT "Generating fileslist from iso.xml"
 	)

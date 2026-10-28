@@ -119,9 +119,9 @@ def parse_iso_xml(xml_path: str) -> list:
                 enum_name = get_enum_name(full_path)
                 diskpath = "";
                 if "${PROJECT_SOURCE_DIR}" in source:
-                    diskpath = source.replace("${PROJECT_SOURCE_DIR}", sys.argv[1]);
+                    diskpath = source.replace("${PROJECT_SOURCE_DIR}", sys.argv[2]);
                 elif "${CMAKE_BINARY_DIR}" in source:
-                    diskpath = source.replace("${CMAKE_BINARY_DIR}", sys.argv[2]);
+                    diskpath = source.replace("${CMAKE_BINARY_DIR}", sys.argv[3]);
                 results.append((cd_path, enum_name, diskpath))
         
         elif elem.tag == "dir":
@@ -171,7 +171,7 @@ def generate_fileslist_h(files: list, output_path: str):
     
     # Generate enum definitions
     c = 0
-    for i, (cd_path, enum_name) in enumerate(files):
+    for i, (cd_path, enum_name, _) in enumerate(files):
         lines.append(f"#define {enum_name}   ({i})")
         c += 1
     lines.append(f"#define FIDX__COUNT ({c})");
@@ -210,6 +210,8 @@ def generate_fileslist_c(files: list, output_path: str):
         "//",
         "// String table containing all CD file paths.",
         "// Indexed by FIDX__... macros defined in fileslist.g.h",
+        "#include <stdint.h>",
+        "#include \"fileslist.g.h\"",
         "",
         "",
         "const char* file_strings_table[] = ",
@@ -235,7 +237,7 @@ def generate_fileslist_c(files: list, output_path: str):
 
     for i, (_, enum_name, filepath) in enumerate(files):
         comma = "," if i < len(files) - 1 else ""
-        lines.append(f'    "{enum_name}"{comma}')
+        lines.append(f'    {enum_name}{comma} // {filepath}')
 
     lines.extend([
         "};",
