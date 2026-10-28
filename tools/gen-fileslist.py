@@ -256,7 +256,7 @@ def generate_fileslist_c(files: list, output_path: str):
     ])
 
     files_containing_textures = [f for f in files if f[2] and fileext_indicates_image(get_fileext(f[2]))];
-    ordered_files_containing_texture = sorted(files_containing_textures, reverse = False, key = get_texture_image_height_from_file);
+    ordered_files_containing_texture = sorted(files_containing_textures, reverse = True, key = get_texture_image_height_from_file);
 
     for i, (_, enum_name, filepath) in enumerate(ordered_files_containing_texture):
         comma = "," if i < len(files) - 1 else ""

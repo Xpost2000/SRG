@@ -31,8 +31,8 @@ const char* file_strings_table[] =
 
 uint16_t texture_ordered_file_id_table[] = 
 {
-    FIDX__RES_SAVICO_TIM, // C:/Users/jerry/project-repositories/SRG/res/savico.tim
-    FIDX__RES_FONT1_SRGFNT, // C:/Users/jerry/project-repositories/SRG/res/kagesans.srgfnt
     FIDX__RES_FONT2_SRGFNT, // C:/Users/jerry/project-repositories/SRG/res/SaikyoSerif.srgfnt
+    FIDX__RES_FONT1_SRGFNT, // C:/Users/jerry/project-repositories/SRG/res/kagesans.srgfnt
+    FIDX__RES_SAVICO_TIM, // C:/Users/jerry/project-repositories/SRG/res/savico.tim
 };
 
