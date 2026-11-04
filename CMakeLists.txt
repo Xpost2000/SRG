@@ -49,7 +49,6 @@ psn00bsdk_add_executable(game GPREL
 					source/audio.c
 					source/mml.c
 					source/ps1_mem_limit.c
-					source/texture_manager.c
 					source/fileslist.g.c)
 
 include(cmake/audio.cmake)
