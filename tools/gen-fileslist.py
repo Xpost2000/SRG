@@ -238,7 +238,7 @@ def generate_fileslist_c(files: list, output_path: str):
     for i, (_, enum_name, filepath) in enumerate(ordered_files_containing_texture):
         comma = "," if i < len(files) - 1 else ""
         print(f"image height: ", get_texture_image_height_from_file((None, None, filepath)));
-        lines.append(f'    {enum_name}{comma} // {filepath}')
+        lines.append(f'    {enum_name}{comma}')
 
     lines.extend([
         "};",
