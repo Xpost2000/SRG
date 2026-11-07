@@ -70,6 +70,51 @@ def get_enum_name(path: str) -> str:
     # Prefix with FIDX__
     return f"FIDX__{name.upper()}"
 
+# Use a stack-based pre-order traversal to build paths
+def traverse_with_context(elem, dir_stack):
+    """Traverse element tree, building full paths for files."""
+    results = []
+
+    if elem.tag == "file":
+        name = elem.get("name")
+        source = elem.get("source")
+
+        if name:
+            # Build full path from stack (most recent dirs first)
+            if dir_stack:
+                full_path = dir_stack[0] + "\\" + name
+            else:
+                full_path = name
+
+            cd_path = normalize_path(full_path)
+            enum_name = get_enum_name(full_path)
+            diskpath = "";
+            if "${PROJECT_SOURCE_DIR}" in source:
+                diskpath = source.replace("${PROJECT_SOURCE_DIR}", sys.argv[2]);
+            elif "${CMAKE_BINARY_DIR}" in source:
+                diskpath = source.replace("${CMAKE_BINARY_DIR}", sys.argv[3]);
+            results.append((cd_path, enum_name, diskpath))
+
+    elif elem.tag == "dir":
+        dir_name = elem.get("name")
+        if dir_name:
+            # Push this dir onto stack and process children
+            dir_stack.append(dir_name)
+            for child in elem:
+                results.extend(traverse_with_context(child, dir_stack))
+            dir_stack.pop()
+        else:
+            # dir without name - still process children
+            for child in elem:
+                results.extend(traverse_with_context(child, dir_stack))
+
+    else:
+        # Other elements (comments, text) - recurse
+        for child in elem:
+            results.extend(traverse_with_context(child, dir_stack))
+
+    return results
+
 
 def parse_iso_xml(xml_path: str) -> list:
     """
@@ -99,71 +144,7 @@ def parse_iso_xml(xml_path: str) -> list:
     if directory_tree is None:
         print(f"Error: No <directory_tree> found in {xml_path}", file=sys.stderr)
         sys.exit(1)
-    
-    # Process all file elements and build full paths
-    # Track directory context using a stack-based approach
-    
-    def build_full_path_for_file(file_elem):
-        """Build full path for a file element by examining parent dirs."""
-        name = file_elem.get("name")
-        if not name:
-            return None
-        
-        full_path = name
-        current = file_elem
-        
-        # Walk up through parent elements
-        # We need to manually traverse since ElementTree has no getparent()
-        # Strategy: iterate through all elements and find those that are ancestors
-        
-        # Simpler approach: use a pre-order traversal that builds path as it goes
-        return full_path
-    
-    # Use a stack-based pre-order traversal to build paths
-    def traverse_with_context(elem, dir_stack):
-        """Traverse element tree, building full paths for files."""
-        results = []
-        
-        if elem.tag == "file":
-            name = elem.get("name")
-            source = elem.get("source")
 
-            if name:
-                # Build full path from stack (most recent dirs first)
-                if dir_stack:
-                    full_path = dir_stack[0] + "\\" + name
-                else:
-                    full_path = name
-                
-                cd_path = normalize_path(full_path)
-                enum_name = get_enum_name(full_path)
-                diskpath = "";
-                if "${PROJECT_SOURCE_DIR}" in source:
-                    diskpath = source.replace("${PROJECT_SOURCE_DIR}", sys.argv[2]);
-                elif "${CMAKE_BINARY_DIR}" in source:
-                    diskpath = source.replace("${CMAKE_BINARY_DIR}", sys.argv[3]);
-                results.append((cd_path, enum_name, diskpath))
-        
-        elif elem.tag == "dir":
-            dir_name = elem.get("name")
-            if dir_name:
-                # Push this dir onto stack and process children
-                dir_stack.append(dir_name)
-                for child in elem:
-                    results.extend(traverse_with_context(child, dir_stack))
-                dir_stack.pop()
-            else:
-                # dir without name - still process children
-                for child in elem:
-                    results.extend(traverse_with_context(child, dir_stack))
-        
-        else:
-            # Other elements (comments, text) - recurse
-            for child in elem:
-                results.extend(traverse_with_context(child, dir_stack))
-        
-        return results
-    
     # Traverse from directory_tree with empty stack
     all_files = traverse_with_context(directory_tree, [])
     files = all_files
@@ -181,8 +162,6 @@ def generate_fileslist_h(files: list, output_path: str):
     lines = [
         "//",
         "// THIS FILE IS AUTO-GENERATED, DO NOT EDIT BY HAND.",
-        "//",
-        f"// Generated from: {Path(output_path).parent / 'iso.xml'}",
         "//",
         "#include <stdint.h>",
         "",

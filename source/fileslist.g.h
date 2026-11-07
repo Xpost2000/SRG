@@ -1,8 +1,6 @@
 //
 // THIS FILE IS AUTO-GENERATED, DO NOT EDIT BY HAND.
 //
-// Generated from: C:/Users/jerry/project-repositories/SRG/source/iso.xml
-//
 #include <stdint.h>
 
 
