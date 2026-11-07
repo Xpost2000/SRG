@@ -1,8 +1,6 @@
 //
 // THIS FILE IS AUTO-GENERATED, DO NOT EDIT BY HAND.
 //
-// Generated from: C:/Users/jerry/project-repositories/SRG/source/iso.xml
-//
 // String table containing all CD file paths.
 // Indexed by FIDX__... macros defined in fileslist.g.h
 #include <stdint.h>

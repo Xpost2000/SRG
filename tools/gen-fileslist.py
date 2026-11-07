@@ -205,8 +205,6 @@ def generate_fileslist_c(files: list, output_path: str):
         "//",
         "// THIS FILE IS AUTO-GENERATED, DO NOT EDIT BY HAND.",
         "//",
-        f"// Generated from: {Path(output_path).parent / 'iso.xml'}",
-        "//",
         "// String table containing all CD file paths.",
         "// Indexed by FIDX__... macros defined in fileslist.g.h",
         "#include <stdint.h>",
