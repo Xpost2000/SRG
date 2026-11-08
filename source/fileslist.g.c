@@ -1,10 +1,10 @@
 //
 // THIS FILE IS AUTO-GENERATED, DO NOT EDIT BY HAND.
 //
-// Generated from: C:\Users\jerry\project-repositories\SRG\source\iso.xml
-//
 // String table containing all CD file paths.
 // Indexed by FIDX__... macros defined in fileslist.g.h
+#include <stdint.h>
+#include "fileslist.g.h"
 
 
 const char* file_strings_table[] = 
@@ -24,5 +24,13 @@ const char* file_strings_table[] =
     "\\RES\\M2.BIN",
     "\\RES\\SAVICO.TIM",
     "\\SYSTEM.CNF"
+};
+
+
+uint16_t texture_ordered_file_id_table[] = 
+{
+    FIDX__RES_FONT2_SRGFNT,
+    FIDX__RES_FONT1_SRGFNT,
+    FIDX__RES_SAVICO_TIM,
 };
 

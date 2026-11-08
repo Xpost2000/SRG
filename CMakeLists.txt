@@ -21,8 +21,13 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py")
 		OUTPUT "${CMAKE_SOURCE_DIR}/source/fileslist.g.h"
 			     "${CMAKE_SOURCE_DIR}/source/fileslist.g.c"
 					 COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen-fileslist.py"
-			     "${CMAKE_SOURCE_DIR}/iso.xml"
-		DEPENDS "${CMAKE_SOURCE_DIR}/iso.xml"
+					 "${CMAKE_SOURCE_DIR}/iso.xml"
+					 "${PROJECT_SOURCE_DIR}"
+					 "${CMAKE_BINARY_DIR}"
+		DEPENDS
+		"${CMAKE_SOURCE_DIR}/iso.xml"
+		"${PROJECT_SOURCE_DIR}/tools/gen-fileslist.py"
+		"${PROJECT_SOURCE_DIR}/tools/bin_helpers.py"
 		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 		COMMENT "Generating fileslist from iso.xml"
 	)

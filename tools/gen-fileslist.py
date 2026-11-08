@@ -17,8 +17,28 @@ Output:
 import sys
 import os
 import xml.etree.ElementTree as ET
+from bin_helpers import *
 from pathlib import Path
 
+def fileext_indicates_image(ext):
+    return ".tim" == ext or ".srgfnt" == ext;
+
+
+def get_texture_image_height_from_file(f):
+    (_, _, filepath) = f;
+    fileext = get_fileext(filepath);
+    with open(filepath, "rb") as f:
+        if ".tim" == fileext:
+            (_, cx, cy, cw, ch, _, il, ix, iy, iw, ih, _) = read_TIM_info(f);
+            return ih;
+        elif ".srgfnt" == fileext:
+            read_SRGFONT_info(f);
+            (_, cx, cy, cw, ch, _, il, ix, iy, iw, ih, _) = read_TIM_info(f);
+            return ih;
+    return None;
+
+def get_fileext(filepath):
+    return Path(filepath).suffix.lower();
 
 def normalize_path(path: str) -> str:
     """
@@ -50,12 +70,57 @@ def get_enum_name(path: str) -> str:
     # Prefix with FIDX__
     return f"FIDX__{name.upper()}"
 
+# Use a stack-based pre-order traversal to build paths
+def traverse_with_context(elem, dir_stack):
+    """Traverse element tree, building full paths for files."""
+    results = []
+
+    if elem.tag == "file":
+        name = elem.get("name")
+        source = elem.get("source")
+
+        if name:
+            # Build full path from stack (most recent dirs first)
+            if dir_stack:
+                full_path = dir_stack[0] + "\\" + name
+            else:
+                full_path = name
+
+            cd_path = normalize_path(full_path)
+            enum_name = get_enum_name(full_path)
+            diskpath = "";
+            if "${PROJECT_SOURCE_DIR}" in source:
+                diskpath = source.replace("${PROJECT_SOURCE_DIR}", sys.argv[2]);
+            elif "${CMAKE_BINARY_DIR}" in source:
+                diskpath = source.replace("${CMAKE_BINARY_DIR}", sys.argv[3]);
+            results.append((cd_path, enum_name, diskpath))
+
+    elif elem.tag == "dir":
+        dir_name = elem.get("name")
+        if dir_name:
+            # Push this dir onto stack and process children
+            dir_stack.append(dir_name)
+            for child in elem:
+                results.extend(traverse_with_context(child, dir_stack))
+            dir_stack.pop()
+        else:
+            # dir without name - still process children
+            for child in elem:
+                results.extend(traverse_with_context(child, dir_stack))
+
+    else:
+        # Other elements (comments, text) - recurse
+        for child in elem:
+            results.extend(traverse_with_context(child, dir_stack))
+
+    return results
+
 
 def parse_iso_xml(xml_path: str) -> list:
     """
     Parse iso.xml and extract all file entries with full paths.
     
-    Returns sorted list of (normalized_path, cd_path) tuples.
+    Returns sorted list of (cd_path, enum_name, diskpath) tuples.
     """
     tree = ET.parse(xml_path)
     root = tree.getroot()
@@ -79,64 +144,7 @@ def parse_iso_xml(xml_path: str) -> list:
     if directory_tree is None:
         print(f"Error: No <directory_tree> found in {xml_path}", file=sys.stderr)
         sys.exit(1)
-    
-    # Process all file elements and build full paths
-    # Track directory context using a stack-based approach
-    
-    def build_full_path_for_file(file_elem):
-        """Build full path for a file element by examining parent dirs."""
-        name = file_elem.get("name")
-        if not name:
-            return None
-        
-        full_path = name
-        current = file_elem
-        
-        # Walk up through parent elements
-        # We need to manually traverse since ElementTree has no getparent()
-        # Strategy: iterate through all elements and find those that are ancestors
-        
-        # Simpler approach: use a pre-order traversal that builds path as it goes
-        return full_path
-    
-    # Use a stack-based pre-order traversal to build paths
-    def traverse_with_context(elem, dir_stack):
-        """Traverse element tree, building full paths for files."""
-        results = []
-        
-        if elem.tag == "file":
-            name = elem.get("name")
-            if name:
-                # Build full path from stack (most recent dirs first)
-                if dir_stack:
-                    full_path = dir_stack[0] + "\\" + name
-                else:
-                    full_path = name
-                
-                cd_path = normalize_path(full_path)
-                enum_name = get_enum_name(full_path)
-                results.append((cd_path, enum_name))
-        
-        elif elem.tag == "dir":
-            dir_name = elem.get("name")
-            if dir_name:
-                # Push this dir onto stack and process children
-                dir_stack.append(dir_name)
-                for child in elem:
-                    results.extend(traverse_with_context(child, dir_stack))
-                dir_stack.pop()
-            else:
-                # dir without name - still process children
-                for child in elem:
-                    results.extend(traverse_with_context(child, dir_stack))
-        
-        else:
-            # Other elements (comments, text) - recurse
-            for child in elem:
-                results.extend(traverse_with_context(child, dir_stack))
-        
-        return results
-    
+
     # Traverse from directory_tree with empty stack
     all_files = traverse_with_context(directory_tree, [])
     files = all_files
@@ -155,15 +163,14 @@ def generate_fileslist_h(files: list, output_path: str):
         "//",
         "// THIS FILE IS AUTO-GENERATED, DO NOT EDIT BY HAND.",
         "//",
-        f"// Generated from: {Path(output_path).parent / 'iso.xml'}",
-        "//",
+        "#include <stdint.h>",
         "",
         "",
     ]
     
     # Generate enum definitions
     c = 0
-    for i, (cd_path, enum_name) in enumerate(files):
+    for i, (cd_path, enum_name, _) in enumerate(files):
         lines.append(f"#define {enum_name}   ({i})")
         c += 1
     lines.append(f"#define FIDX__COUNT ({c})");
@@ -174,6 +181,12 @@ def generate_fileslist_h(files: list, output_path: str):
         "// String table for file paths (indexed by enum above)",
         "",
         "extern const char* file_strings_table[];",
+        "",
+        "// ID table for files that contain textures within them",
+        "// this is used so that we can have a simpler texture packing at runtime",
+        "// that is generally not super duper wasteful.",
+        "",
+        "extern uint16_t texture_ordered_file_id_table[];",
         "",
         "",
     ])
@@ -192,22 +205,41 @@ def generate_fileslist_c(files: list, output_path: str):
         "//",
         "// THIS FILE IS AUTO-GENERATED, DO NOT EDIT BY HAND.",
         "//",
-        f"// Generated from: {Path(output_path).parent / 'iso.xml'}",
-        "//",
         "// String table containing all CD file paths.",
         "// Indexed by FIDX__... macros defined in fileslist.g.h",
+        "#include <stdint.h>",
+        "#include \"fileslist.g.h\"",
         "",
         "",
         "const char* file_strings_table[] = ",
         "{",
     ]
     
-    for i, (cd_path, enum_name) in enumerate(files):
+    for i, (cd_path, enum_name, filepath) in enumerate(files):
         # Escape backslashes for C string
         escaped_path = cd_path.replace("\\", "\\\\")
         comma = "," if i < len(files) - 1 else ""
         lines.append(f'    "{escaped_path}"{comma}')
     
+    lines.extend([
+        "};",
+        "",
+        "",
+    ])
+
+    lines.extend([
+        "uint16_t texture_ordered_file_id_table[] = ",
+        "{",
+    ])
+
+    files_containing_textures = [f for f in files if f[2] and fileext_indicates_image(get_fileext(f[2]))];
+    ordered_files_containing_texture = sorted(files_containing_textures, reverse = True, key = get_texture_image_height_from_file);
+
+    for i, (_, enum_name, filepath) in enumerate(ordered_files_containing_texture):
+        comma = "," if i < len(files) - 1 else ""
+        print(f"image height: ", get_texture_image_height_from_file((None, None, filepath)));
+        lines.append(f'    {enum_name}{comma}')
+
     lines.extend([
         "};",
         "",
