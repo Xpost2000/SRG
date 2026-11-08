@@ -121,6 +121,14 @@ Vector2 font_get_cstr_dimensions(Font* font, const char* text)
     }
   }
 
+  //
+  // the last line has no '\n' to commit it.
+  //
+  if (string_length > 0) {
+    result.x = max(cursor_x, result.x);
+    result.y += font->glyph_height;
+  }
+
   return result;
 }
 
@@ -149,15 +157,4 @@ Rectangle32 font_get_glyph_rect(Font* font, uint8_t character)
   result.h = font->glyph_height;
 
   return result;
-}
-
-Rectangle32 font_get_glyph_rect_vram(Font* font, uint8_t character)
-{
-  Rectangle32 glyph_rect;
-
-  glyph_rect	= font_get_glyph_rect(font, character);
-  glyph_rect.x += font->tim.image.x;
-  glyph_rect.y += font->tim.image.y;
-
-  return glyph_rect;
 }

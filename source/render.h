@@ -2,30 +2,45 @@
 #define RENDER_H
 
 #include "common.h"
+#include "font.h"
+#include "vram.h"
+
 #include <psxgte.h>
 
 //
-// The smallest thing that can put a rectangle and some debug text on the
-// screen. Double-buffered, ordering-table based, lifted from the PSn00bSDK
-// "hello" example. Sprites and textures are not here yet.
+// Double-buffered, ordering-table based renderer. 3D goes through the R_render_*
+// command list, 2D writes GPU packets directly because a 2D draw has nothing
+// that benefits from being deferred.
 //
 // Frame shape:
 //
-//   render_tile(...); render_text(...);   // any order, sorted by z
+//   R_render_new_frame();
+//   R_render_push_mesh(...);               // 3D
+//   R_render_end_frame();                  // sort the 3D BEFORE drawing 2D
+//   render_tile(...); render_sprite(...);  // 2D, any order, sorted by z
 //   render_end_frame();                    // waits for GPU + VSync, swaps,
 //                                          // and clears for the next frame
 //
-// z runs 0..RENDER_OT_LENGTH-1. HIGHER z is drawn FIRST (further back), so
-// z = 0 is the front-most layer.
+// 2D z runs 0..RENDER_2D_OT_LENGTH-1. HIGHER z is drawn FIRST (further back), so
+// z = 0 is the front-most layer. All of 2D is in front of all of 3D.
+//
+// NOTE:
+// - Two draws at the same z come out in REVERSE call order, the later one ends
+//   up underneath. If the order matters, give them different z.
+// - Running out of 2D packets flushes instead of crashing (see render.c). It
+//   hitches and breaks z ordering across the flush, so it is a safety net.
 //
 
 #define RENDER_SCREEN_WIDTH  (320)
 #define RENDER_SCREEN_HEIGHT (240)
+#define RENDER_2D_OT_LENGTH  (256)
 
 typedef struct Render_Mesh         Render_Mesh;
 typedef struct Render_Command      Render_Command;
 typedef struct Render_Command_Mesh Render_Command_Mesh;
 /* typedef struct Render_Command_Quad Render_Command_Quad; */
+typedef struct Render_Color        Render_Color;
+typedef struct Render_Stats        Render_Stats;
 
 enum Render_Command_Type {
   RENDER_COMMAND_MESH,
@@ -74,9 +89,24 @@ struct Render_Command_Mesh {
 struct Render_Command {
   uint8_t type;
   union {
-    Render_Command_Mesh mesh; 
+    Render_Command_Mesh mesh;
     /* Render_Command_Quad quad; */
   };
+};
+
+//
+// Textured primitives multiply the texture by this colour with 128 as 1.0, so
+// (128, 128, 128) draws a texture unchanged and 255 is double brightness.
+//
+struct Render_Color {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+};
+
+struct Render_Stats {
+  int packets_2d_peak;    // bytes, most ever used between two flushes
+  int flushes_last_frame; // should be 0, otherwise raise the packet budget
 };
 
 //
@@ -99,16 +129,31 @@ void R_render_new_frame(void);
 void R_render_end_frame(void);
 
 //
-// Older Lower Level Primitives
+// 2D
 //
 
 void render_initialize(void);
 void render_tile(int x, int y, int w, int h, uint8_t r, uint8_t g, uint8_t b, int z);
-void render_text(int x, int y, int z, const char* text);
-void render_end_frame(void);
 
-void* _new_primitive(int z, size_t size);
-void  _sort_primitive(int z, void* prim);
-void* _alloc_primitive(size_t size);
+//
+// source is in texels, relative to the top left of the texture. SPRT cannot
+// scale or rotate, it copies texels 1:1.
+//
+void render_sprite(const Vram_Texture* texture, Rectangle32 source, Vector2 position, Render_Color color, int z);
+
+//
+// The font must have been uploaded and told where it went with
+// font_set_vram_information. '\n' starts a new line.
+//
+void render_font_text(Font* font, Vector2 position, const char* text, Render_Color color, int z);
+
+//
+// Debug only: goes through FntSort and the SDK's font. Use render_font_text for
+// anything a player is meant to see.
+//
+void render_text(int x, int y, int z, const char* text);
+
+void         render_end_frame(void);
+Render_Stats render_get_stats(void);
 
 #endif

@@ -11,6 +11,12 @@
 // tile metadata.
 //
 
+//
+// glyphmap value for a character with nothing to draw: it just advances the
+// cursor. Space is always this.
+//
+#define FONT_GLYPH_NONE (0xFF)
+
 typedef struct Font Font;
 typedef struct Font_TIM_Image_PixelInformation Font_TIM_Image_PixelInformation;
 typedef struct Font_TIM_Image Font_TIM_Image;
@@ -79,13 +85,8 @@ Vector2   font_get_cstr_dimensions(Font* font, const char* text);
 void          font_set_vram_information(Font* font, Vector2 vram_location, Vector2 clut_location);
 
 //
-// font metrics glyph rectangle
+// font metrics glyph rectangle, in texels from the top left of the font image
 //
 Rectangle32   font_get_glyph_rect(Font* font, uint8_t character);
-
-//
-// font glyph in vram installed location based on the TIM fields
-//
-Rectangle32   font_get_glyph_rect_vram(Font* font, uint8_t character);
 
 #endif

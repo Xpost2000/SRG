@@ -30,6 +30,14 @@ uint8_t* memory_arena_push_top_unaligned(Memory_Arena* arena, int amount)
   return result;
 }
 
+uint8_t* memory_arena_push_no_clear(Memory_Arena* arena, int amount)
+{
+  uint8_t* result = arena->memory + arena->cursor;
+  arena->cursor += amount;
+  assert(arena->cursor + arena->cursor_top < arena->capacity && "[MEM-ARENA]: OOM!");
+  return result;
+}
+
 void memory_arena_reset_bottom(Memory_Arena* arena)
 {
   arena->cursor = 0;

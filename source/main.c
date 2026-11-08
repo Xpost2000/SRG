@@ -23,7 +23,9 @@
 #include "input_action.h"
 #include "render.h"
 #include "font.h"
+#include "vram.h"
 #include "audio.h"
+#include "fileslist.g.h"
 
 //
 // psxgpu just to directly create primitives for font testing
@@ -197,6 +199,18 @@ struct Game_Settings {
 #define MARKER_CAPACITY (24)
 #define MARKER_SIZE     (4)
 
+#define LOGO_SPEED       (2)  // pixels per frame, each axis
+#define LOGO_CAPTION     ("RETRO")
+#define LOGO_CAPTION_GAP (2)
+#define LOGO_Z           (5)
+
+//
+// 16 bytes each, so this is 2 packet buffers worth: it has to flush at least
+// once a frame.
+//
+#define RENDER_STRESS_TILE_COUNT (3000)
+#define RENDER_STRESS_TILE_SIZE  (4)
+
 typedef struct Test_Scene Test_Scene;
 
 enum Scene_Mode {
@@ -210,6 +224,7 @@ enum Menu_Item {
   MENU_ITEM_SAVE,
   MENU_ITEM_LOAD,
   MENU_ITEM_MUSIC, // start / fade out the sequenced test song
+  MENU_ITEM_RENDER_STRESS,
   MENU_ITEM_COUNT
 };
 
@@ -226,6 +241,11 @@ struct Test_Scene {
 
   int           menu_cursor; // Menu_Item
   char          status[48];  // last save / load result, shown on screen
+
+  Vector2       logo_position;
+  Vector2       logo_velocity;
+  int           logo_color_index;
+  int           render_stress; // deliberately overflow the 2D packet buffer
 };
 
 static const uint8_t g_box_colors[][3] = {
@@ -234,6 +254,18 @@ static const uint8_t g_box_colors[][3] = {
   {  80, 140, 255 },
   { 255,  90,  90 },
   { 230, 230, 230 },
+};
+
+//
+// These multiply a white texture, where 128 means unchanged (see Render_Color)
+//
+static const Render_Color g_logo_colors[] = {
+  { 128, 128, 128 },
+  { 128,  40,  40 },
+  {  40, 128,  60 },
+  {  50,  80, 128 },
+  { 128, 110,  20 },
+  { 110,  50, 128 },
 };
 
 //
@@ -267,17 +299,19 @@ static const char* const g_action_labels[INPUT_ACTION_COUNT] = {
 };
 
 static const char* const g_menu_labels[MENU_ITEM_COUNT] = {
-  "P1 LAYOUT", "P2 LAYOUT", "SAVE TO CARD", "LOAD FROM CARD", "MUSIC",
+  "P1 LAYOUT", "P2 LAYOUT", "SAVE TO CARD", "LOAD FROM CARD", "MUSIC", "2D STRESS",
 };
 
-static uint8_t g_iconfile[CD_SECTOR_SIZE]; // memory card icon TIM, one CD sector
-static Font    g_font1;
-static Font    g_font2;
+static uint8_t      g_iconfile[CD_SECTOR_SIZE]; // memory card icon TIM, one CD sector
+static Font         g_font1;
+static Font         g_font2;
+static Vram_Texture g_logo;
 
 //
-// Just for font testing purposes
+// Files that end up in VRAM only pass through here at load time. The GPU's DMA
+// needs word alignment and a byte array makes no such promise on its own.
 //
-static uint8_t g_fontfile[2048 * 3]; // it's actually 5KB but just in case.
+static uint8_t g_texturefile[2048 * 3] __attribute__((aligned(4))); // biggest is 5KB, but just in case.
 
 static uint8_t g_meshfile1[2048 * 20]; // they're actually like 30KB but just in case.
 static uint8_t g_meshfile2[2048 * 20];
@@ -534,6 +568,9 @@ static void scene_update_menu(Test_Scene* scene)
     case MENU_ITEM_MUSIC: {
       music_toggle(scene);
     } break;
+    case MENU_ITEM_RENDER_STRESS: {
+      scene->render_stress ^= 1;
+    } break;
     }
   }
 
@@ -543,8 +580,40 @@ static void scene_update_menu(Test_Scene* scene)
   }
 }
 
+//
+// The screensaver. Each wall reverses one axis, and the colour changes so that
+// a hit is easy to see (and hear).
+//
+static void scene_update_logo(Test_Scene* scene)
+{
+  int limit_x = RENDER_SCREEN_WIDTH  - g_logo.width;
+  int limit_y = RENDER_SCREEN_HEIGHT - g_logo.height - LOGO_CAPTION_GAP - g_font1.glyph_height;
+  int bounced = 0;
+
+  scene->logo_position.x += scene->logo_velocity.x * frame_divisor;
+  scene->logo_position.y += scene->logo_velocity.y * frame_divisor;
+
+  if (scene->logo_position.x < 0 || scene->logo_position.x > limit_x) {
+    scene->logo_velocity.x = -scene->logo_velocity.x;
+    scene->logo_position.x = clamp(scene->logo_position.x, limit_x, 0);
+    bounced = 1;
+  }
+  if (scene->logo_position.y < 0 || scene->logo_position.y > limit_y) {
+    scene->logo_velocity.y = -scene->logo_velocity.y;
+    scene->logo_position.y = clamp(scene->logo_position.y, limit_y, 0);
+    bounced = 1;
+  }
+
+  if (bounced) {
+    scene->logo_color_index = (scene->logo_color_index + 1) % array_count(g_logo_colors);
+    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX / 4, AUDIO_VOLUME_MAX / 4);
+  }
+}
+
 static void scene_update(Test_Scene* scene)
 {
+  scene_update_logo(scene);
+
   switch (scene->mode) {
   case SCENE_MODE_GAMEPLAY: {
     scene_update_gameplay(scene);
@@ -636,6 +705,8 @@ static void draw_menu(Test_Scene* scene)
       sprintf(line, "%c %s: < TYPE %c >", cursor, g_menu_labels[item], schema_letter(scene->settings.gameplay_schema[item]));
     } else if (item == MENU_ITEM_MUSIC) {
       sprintf(line, "%c %s: %s", cursor, g_menu_labels[item], audio_music_is_playing() ? "STOP" : "PLAY");
+    } else if (item == MENU_ITEM_RENDER_STRESS) {
+      sprintf(line, "%c %s: %s", cursor, g_menu_labels[item], scene->render_stress ? "ON" : "OFF");
     } else {
       sprintf(line, "%c %s", cursor, g_menu_labels[item]);
     }
@@ -645,79 +716,48 @@ static void draw_menu(Test_Scene* scene)
   render_text(64, y + 18, 0, "CANCEL OR MENU: BACK TO GAME");
 }
 
+static void draw_logo(Test_Scene* scene)
+{
+  Render_Color color        = g_logo_colors[scene->logo_color_index];
+  Vector2      caption_size = font_get_cstr_dimensions(&g_font1, LOGO_CAPTION);
+  Vector2      caption_position;
+
+  caption_position.x = scene->logo_position.x + (g_logo.width - caption_size.x) / 2;
+  caption_position.y = scene->logo_position.y + g_logo.height + LOGO_CAPTION_GAP;
+
+  render_sprite(&g_logo, (Rectangle32) {0, 0, g_logo.width, g_logo.height}, scene->logo_position, color, LOGO_Z);
+  render_font_text(&g_font1, caption_position, LOGO_CAPTION, color, LOGO_Z);
+}
+
 //
-// testing code for custom font
+// Drawn before everything else, so that the flushes it causes all land
+// underneath the rest of the scene. 7 and 13 only exist to scatter the tiles.
 //
-static void _custom_drawtext(Font* f, Vector2 xy, char* txt)
+static void draw_render_stress(void)
 {
   int i;
-  Vector2 cursor = xy;
 
-  int string_length = strlen(txt);
-
-  static int showprint = 1;
-
-  int tpage_cell_x;
-  int tpage_cell_y;
-
-  for (i = 0; i < string_length; ++i) {
-    SPRT* glyph;
-    DR_TPAGE* tpage_primitive;
-    uint32_t tpage;
-    Rectangle32 uvoff;
-
-    if ((txt[i] != ' ') || (txt[i] != '\n')) {
-      glyph = (SPRT*) _new_primitive(0, sizeof(SPRT));
-      tpage_primitive = (DR_TPAGE*) _new_primitive(0, sizeof(DR_TPAGE));
-
-      uvoff = font_get_glyph_rect_vram(f, txt[i]);
-
-      setSprt(glyph);
-      setXY0(glyph, cursor.x, cursor.y);
-      setUV0(glyph, 16, 0);
-      setWH(glyph, f->glyph_width, f->glyph_height);
-      setRGB0(glyph, 127, 127, 127);
-
-      //
-      // need to figure out how to generalize this in the API since
-      // UVs are tpage relative and I kind of just got by before LOL.
-      //
-      tpage_cell_x = f->tim.image.x / 64;
-      tpage_cell_y = f->tim.image.y / 256;
-      /* setUV0(glyph, (uvoff.x - (tpage_cell_x * 256)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256); */
-      setUV0(glyph, (uvoff.x - (tpage_cell_x * 64)) % 256, (uvoff.y - (tpage_cell_y * 256)) % 256);
-
-      if (showprint) {
-	_debugprintf("glyph(%c(%d)): %d, %d, %d, %d sample at [%d, %d] (tpage_cell_x: %d, tpage_real_x: %d, tpage_cell_y: %d, tpage_real_y: %d)",
-		     txt[i], txt[i], uvoff.x, uvoff.y, uvoff.w, uvoff.h, (uvoff.x) % 64, (uvoff.y) % 256,
-		     (tpage_cell_x), (tpage_cell_x * 64),
-		     (tpage_cell_y), (tpage_cell_y * 256));
-      }
-
-      setClut(glyph, f->tim.clut.x, f->tim.clut.y);
-
-      tpage = getTPage(0, 0, f->tim.image.x, f->tim.image.y),
-      setDrawTPage(tpage_primitive, 0, 0, tpage);
-      cursor.x += f->glyph_width;
-    } else if (txt[i] == '\n') {
-      cursor.y += f->glyph_height;
-      cursor.x = xy.x;
-    } else {
-      cursor.x += f->glyph_width;
-    }
+  for (i = 0; i < RENDER_STRESS_TILE_COUNT; ++i) {
+    render_tile((i * 7)  % (RENDER_SCREEN_WIDTH  - RENDER_STRESS_TILE_SIZE),
+                (i * 13) % (RENDER_SCREEN_HEIGHT - RENDER_STRESS_TILE_SIZE),
+                RENDER_STRESS_TILE_SIZE, RENDER_STRESS_TILE_SIZE,
+                i & 0x7F, (i * 3) & 0x7F, (i * 5) & 0x7F, RENDER_2D_OT_LENGTH - 1);
   }
-  showprint = 0;
 }
 
 static void scene_draw(Test_Scene* scene)
 {
-  char line[64];
+  char         line[64];
+  Render_Stats stats = render_get_stats();
 
+  if (scene->render_stress) {
+    draw_render_stress();
+  }
+
+  draw_logo(scene);
   draw_box(scene);
 
-  extern uint32_t g_peak_used;
-  sprintf(line, "CMDBUFFERUSG: %d, ANG: %d",
-	  g_peak_used, d);
+  sprintf(line, "2D PEAK: %d, FLUSH: %d, ANG: %d", stats.packets_2d_peak, stats.flushes_last_frame, d);
   render_text(8, 8, 0, line);
 
   draw_pad_debug_line(P1_PAD, 20);
@@ -735,8 +775,94 @@ static void scene_draw(Test_Scene* scene)
     render_text(8, 220, 0, "HOLD HELP FOR BINDINGS   PAUSE FOR MENU");
   }
 
-  _custom_drawtext(&g_font1, (Vector2) {100, 100}, "HI SRG TEAM");
-  _custom_drawtext(&g_font2, (Vector2) {100, 116}, "Another Font, Oh man!");
+  render_font_text(&g_font1, (Vector2) {100, 100}, "HI SRG TEAM", (Render_Color) {128, 128, 128}, 0);
+  render_font_text(&g_font2, (Vector2) {100, 116}, "Another Font,\nOh man!", (Render_Color) {128, 128, 128}, 0);
+}
+
+// ----------------------------------------------------------------------------
+//  Loading textures
+// ----------------------------------------------------------------------------
+
+//
+// Fonts are a TIM with extra metadata, so once the TIM is found these all upload
+// the same way. The font only keeps its glyph table and where it ended up.
+//
+static Font load_font_to_vram(uint8_t* data, int size)
+{
+  Font         result;
+  TIM_IMAGE    tim;
+  Vram_Texture texture;
+
+  result  = font_load_from_memory(data, size);
+  tim     = font_get_tim_info(&result);
+  texture = vram_upload_tim(&tim);
+
+  font_set_vram_information(&result, (Vector2) {texture.image_rect.x, texture.image_rect.y}, texture.clut_location);
+
+  return result;
+}
+
+static Vram_Texture load_tim_to_vram(uint8_t* data)
+{
+  TIM_IMAGE tim;
+
+  GetTimInfo((const uint32_t*) data, &tim);
+
+  return vram_upload_tim(&tim);
+}
+
+//
+// Walks the build-time list so that uploads arrive tallest first, which is what
+// the VRAM shelves want. Adding an image to iso.xml adds it to this list.
+//
+static void load_textures(void)
+{
+  int i;
+
+  vram_reset();
+
+  for (i = 0; i < TEXTURE_ORDERED_FILE_COUNT; ++i) {
+    uint16_t    file_id = texture_ordered_file_id_table[i];
+    File_Handle file;
+    int         bytes;
+
+    //
+    // The card icon goes to the memory card, it is never drawn by the GPU.
+    //
+    if (file_id == FIDX__RES_SAVICO_TIM) {
+      continue;
+    }
+
+    file = filesystem_open(file_strings_table[file_id]);
+
+    if (file == 0) {
+      printf("[MAIN] texture file not found on disc: %s\n", file_strings_table[file_id]);
+      continue;
+    }
+
+    bytes = filesystem_read(file, g_texturefile, sizeof(g_texturefile));
+    filesystem_close(file);
+
+    if (bytes < 0) {
+      printf("[MAIN] failed reading texture file: %s\n", file_strings_table[file_id]);
+      continue;
+    }
+
+    switch (file_id) {
+    case FIDX__RES_FONT1_SRGFNT: {
+      g_font1 = load_font_to_vram(g_texturefile, bytes);
+    } break;
+    case FIDX__RES_FONT2_SRGFNT: {
+      g_font2 = load_font_to_vram(g_texturefile, bytes);
+    } break;
+    case FIDX__RES_LOGO_TIM: {
+      g_logo = load_tim_to_vram(g_texturefile);
+    } break;
+    default: {
+      assert(0 && "[MAIN] Texture file with nothing to receive it.");
+    } break;
+    }
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -776,83 +902,7 @@ int main(int argc, const char **argv)
     }
   }
 
-  //
-  // Test code for loading font file
-  //
-  {
-    File_Handle font = filesystem_open("\\RES\\FONT1.SRGFNT");
-    if (font != 0) {
-      int bytes = filesystem_read(font, g_fontfile, sizeof(g_fontfile));
-      filesystem_close(font);
-      if (bytes >= 0) {
-        g_font1 = font_load_from_memory(g_fontfile, bytes);
-
-        //
-        // Upload to vram synchronusly picking some random point
-        //
-        {
-	// temporary for primitive
-	TIM_IMAGE tim = font_get_tim_info(&g_font1);
-	LoadImage(&(RECT) {
-	  .x = 960,
-	  .y = 256,
-	  .w = g_font1.tim.image.width,
-	  .h = g_font1.tim.image.height,
-	},
-		  tim.paddr);
-	LoadImage(&(RECT) {
-          .x = 0, 480,	
-	  .w = g_font1.tim.clut.width,
-	  .h = g_font1.tim.clut.height,
-	}, tim.caddr);
-
-	font_set_vram_information(&g_font1, (Vector2){960, 256}, (Vector2){0, 480});
-	DrawSync(1);
-        }
-      } else {
-        printf("[MAIN] font file not found on disc\n");
-      }
-    } else {
-      printf("[MAIN] font file not found on disc\n");
-    }
-  }
-  {
-    File_Handle font = filesystem_open("\\RES\\FONT2.SRGFNT");
-    if (font != 0) {
-      int bytes = filesystem_read(font, g_fontfile, sizeof(g_fontfile));
-      filesystem_close(font);
-      if (bytes >= 0) {
-        g_font2 = font_load_from_memory(g_fontfile, bytes);
-
-        //
-        // Upload to vram synchronusly picking some random point
-        //
-        {
-	// temporary for primitive
-	TIM_IMAGE tim = font_get_tim_info(&g_font2);
-	LoadImage(&(RECT) {
-	  .x = 960,
-	  .y = 256 + g_font1.tim.image.height,
-	  .w = g_font2.tim.image.width,
-	  .h = g_font2.tim.image.height,
-	},
-		  tim.paddr);
-	LoadImage(&(RECT) {
-          .x = 0, 481,	
-	  .w = g_font2.tim.clut.width,
-	  .h = g_font2.tim.clut.height,
-	}, tim.caddr);
-
-	font_set_vram_information(&g_font2, (Vector2){960, 256 + g_font1.tim.image.height}, (Vector2){0, 481});
-	DrawSync(1);
-        }
-      } else {
-        printf("[MAIN] font file not found on disc\n");
-      }
-    } else {
-      printf("[MAIN] font file not found on disc\n");
-    }
-  }
+  load_textures();
 
   //
   // Songs. Parsed once into note events in main RAM; the instruments they
@@ -862,6 +912,8 @@ int main(int argc, const char **argv)
   g_song_theme = audio_song_load(MUSIC_TEST_PATH);
 
   scene_reset_box(&scene);
+  scene.logo_position = (Vector2) {16, 16};
+  scene.logo_velocity = (Vector2) {LOGO_SPEED, LOGO_SPEED};
   settings_load(&scene);
   scene_enter_gameplay(&scene);
 
@@ -946,7 +998,9 @@ int main(int argc, const char **argv)
     //                      vblank, "last frame" is the snapshot before it
     //   audio_update       step the sequencer: key the notes due this frame,
     //                      step fades; never blocks
-    //   scene_draw         build the frame
+    //   R_render_end_frame sort the 3D first, so that if 2D overflows and
+    //                      flushes, the world goes out ahead of the UI
+    //   scene_draw         build the 2D part of the frame
     //   input_pad_frame    snapshot the packet we just finished reading and
     //                      bump the held-frame counters
     //   render_end_frame   DrawSync + VSync: the BIOS writes a fresh packet
@@ -960,7 +1014,6 @@ int main(int argc, const char **argv)
     frame_divisor = vblank_now - last_vblank;
     scene_update(&scene);
     audio_update();
-    scene_draw(&scene);
     // draw another box!
 #if 0
     {
@@ -1002,9 +1055,11 @@ int main(int argc, const char **argv)
     }
 #endif
 
+    R_render_end_frame();
+    scene_draw(&scene);
+
     input_pad_frame();
     last_vblank = VSync(-1);
-    R_render_end_frame();
     render_end_frame();
   }
 

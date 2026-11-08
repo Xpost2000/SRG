@@ -33,6 +33,17 @@ uint8_t*      memory_arena_push_unaligned(Memory_Arena* arena, int amount);
 uint8_t*      memory_arena_push_top_unaligned(Memory_Arena* arena, int amount);
 uint8_t*      memory_arena_push_aligned(Memory_Arena* arena, int amount);
 uint8_t*      memory_arena_push_top_aligned(Memory_Arena* arena, int amount);
+
+//
+// NOTE:
+// the fast path for things allocated in huge numbers every frame (GPU
+// primitives). The other pushes print a debug line and memset on every call,
+// which is thousands of printfs a frame when the unit of allocation is a glyph.
+//
+// The memory is NOT cleared, callers must write every field they use.
+//
+uint8_t*      memory_arena_push_no_clear(Memory_Arena* arena, int amount);
+
 char*         memory_arena_clone_string(Memory_Arena* arena, char* string, size_t length);
 size_t        memory_arena_get_used(Memory_Arena* arena);
 size_t        memory_arena_get_cursor(Memory_Arena* arena);
