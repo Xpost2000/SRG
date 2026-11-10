@@ -27,6 +27,7 @@ enum File_System_Seek_Where {
 
 File_Handle filesystem_open(const char* filepath);
 int         filesystem_read(File_Handle file, unsigned char* data, size_t size);
+int         filesystem_write(File_Handle file, unsigned char* data, size_t size);
 void        filesystem_seek(File_Handle file, uint8_t where, int32_t offset);
 size_t      filesystem_get_file_size(File_Handle file);
 void        filesystem_close(File_Handle file);

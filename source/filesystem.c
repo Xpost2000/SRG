@@ -122,6 +122,12 @@ int filesystem_read(File_Handle file, unsigned char* data, size_t size)
   return (int)bytes_read;
 }
 
+int filesystem_write(File_Handle file, unsigned char* data, size_t size)
+{
+  assert(0 && "[FILESYSTEM] PS1 filesystem implementation does not support writeback.");
+  return -1;
+}
+
 void filesystem_close(File_Handle file)
 {
   int			index = (int)(file - 1);
