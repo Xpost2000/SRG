@@ -29,6 +29,11 @@ inline static char* __shorten_path_length(char* original, int depth) {
 
 #define UNUSED(x) ((void)(x))
 
+#define Kilobyte(x) (x * 1024)
+#define Megabyte(x) (x * 1024 * 1024)
+#define Gigabyte(x) (x * 1024 * 1024 * 1024)
+#define Terabyte(x) (x * 1024 * 1024 * 1024 * 1024)
+
 #ifdef NDEBUG
 #define RELEASE
 #endif
