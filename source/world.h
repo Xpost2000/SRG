@@ -50,6 +50,7 @@
 #endif
 
 #define WORLD_GRID_UNIT_ONE (4096)
+#define WORLD_CURRENT_VERSION (WORLD_VERSION_0)
 
 typedef struct World_Entity_Iterator         World_Entity_Iterator;
 typedef struct World                         World;
@@ -58,6 +59,11 @@ typedef struct World_Entity_Player_Spawn     World_Entity_Player_Spawn;
 typedef struct World_Entity_Object_Prop      World_Entity_Object_Prop;
 typedef struct World_Entity_Stage_End_Region World_Entity_Stage_End_Region;
 typedef struct World_Tile                    World_Tile;
+
+enum World_Data_Version {
+  WORLD_VERSION_0,
+  WORLD_VERSION_COUNT,
+};
 
 enum World_Entity_Type {
   WORLD_ENTITY_TYPE_NONE,

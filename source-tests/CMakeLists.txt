@@ -16,7 +16,7 @@ project(
 #
 include_directories("../source/")
 
-add_executable(world_tests world_tests.c)
+add_executable(world_tests world_tests.c ../source/memory_arena.c ../source/world.c ../source/serializer.c source/filesystem_pc.c)
 
 enable_testing()
 
