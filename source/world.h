@@ -2,6 +2,7 @@
 #define WORLD_H
 
 #include "serializer.h"
+#include "memory_arena.h"
 
 //
 // The world format is basically just a block
@@ -83,6 +84,26 @@ static const char* g_world_entity_type_strings[] = {
 // ONE == 4096. So just use WORLD_GRID_UNIT_ONE
 //
 
+struct World {
+  int32_t	version;
+
+  //
+  // This is the total size of the file / data
+  //
+  uint32_t	total_size;
+
+  //
+  // This is the size that mainly matters for memory allocation
+  // as the stuff that's actually kept after load is mainly the world
+  // tiles which is mostly collision information.
+  //
+  uint32_t	size;
+
+  uint32_t      entities_count;
+  int32_t       world_w;
+  int32_t       world_h;
+};
+
 struct World_Entity {
   uint16_t	type;
   //
@@ -139,6 +160,9 @@ struct World_Entity_Stage_End_Region {
 };
 
 struct World_Tile {
+  //
+  // Grid Coordinates
+  //
   int16_t	x;
   int16_t	y;
 
@@ -148,7 +172,7 @@ struct World_Tile {
   int16_t	flags;
 };
 
-World*                world_read_from_serializer(Serializer* serializer);
+World*                world_read_from_serializer(Memory_Arena* arena, Serializer* serializer);
 World_Entity_Iterator world_entity_iterator_begin(World* world);
 int                   world_entity_iterator_complete(World_Entity_Iterator* iterator);
 void                  world_entity_iterator_advance(World_Entity_Iterator* iterator);
