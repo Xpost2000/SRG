@@ -102,6 +102,21 @@ struct World {
   uint32_t      entities_count;
   int32_t       world_w;
   int32_t       world_h;
+
+#if 0
+  World_Tile   tiles[world_h * world_w];
+
+  //
+  // NOTE(jerry):
+  // this is not actually a perfectly
+  // indexable array, because the entries
+  // are variably sized so as to reduce
+  // disk-space.
+  //
+  World_Entity entities[];
+#else
+  uint8_t      data[];
+#endif
 };
 
 struct World_Entity {
