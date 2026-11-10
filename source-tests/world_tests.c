@@ -9,7 +9,7 @@
 // since we should never get unformatted data in-engine.
 //
 
-#undef RELEASE
+#define NDEBUG
 
 #include "common.h"
 #include "memory_arena.h"
@@ -156,13 +156,13 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
 
 void assert_tile_is_solid(World_Tile t)
 {
-  fprintf(stderr, "Testing tile at (%d, %d, %d flags).\n", t.x, t.y, t.flags);
+  _debugprintf( "Testing tile at (%d, %d, %d flags).\n", t.x, t.y, t.flags);
   assert(((t.flags & WORLD_TILE_FLAG_SOLID)>0) && "A tile that should be solid is not!");
 }
 
 void assert_tile_is_not_solid(World_Tile t)
 {
-  fprintf(stderr, "Testing tile at (%d, %d, %d flags).\n", t.x, t.y, t.flags);
+  _debugprintf( "Testing tile at (%d, %d, %d flags).\n", t.x, t.y, t.flags);
   assert(!((t.flags & WORLD_TILE_FLAG_SOLID)>0) && "A tile that should be not solid is not!");
 }
 
@@ -207,7 +207,7 @@ void test_entity_iteration(World* world, Serializer* serializer)
     _debug_world_entity_printout(iterator.entity);
   }
 
-  fprintf(stderr, "world->entities_count = %d vs. iterator.read_count = %d\n",
+  _debugprintf( "world->entities_count = %d vs. iterator.read_count = %d\n",
           world->entities_count, iterator.read_count);
   assert(world->entities_count == iterator.read_count && "Iterator terminated prematurely or otherwise had a wrong count.");
 }
@@ -220,7 +220,7 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   size_t     world_buffer_size;
 
   world_buffer = setup_simple_world_for_test(&world_buffer_size, testworld1, 8, 8);
-  fprintf(stderr, "world size: %lld\n", world_buffer_size);
+  _debugprintf( "world size: %lld\n", world_buffer_size);
 
   serializer   = serializer_from_memory(world_buffer, world_buffer_size);
 

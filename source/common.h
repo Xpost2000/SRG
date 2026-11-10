@@ -39,9 +39,15 @@ inline static char* __shorten_path_length(char* original, int depth) {
 #endif
 
 #ifndef RELEASE
+#ifdef PSN00BSDK
 #define _debugprintfhead()   printf("[%s:%d:%s()]: " , __shorten_path_length((char*)__FILE__, 2), __LINE__, __func__)
 #define _debugprintf1(...)  do { _debugprintfhead(); printf(__VA_ARGS__); } while(0)
 #define _debugprintf(...)   do { _debugprintf1(__VA_ARGS__); printf("\n"); } while (0) 
+#else
+#define _debugprintfhead()   fprintf(stderr, "[%s:%d:%s()]: " , __shorten_path_length((char*)__FILE__, 2), __LINE__, __func__)
+#define _debugprintf1(...)  do { _debugprintfhead(); fprintf(stderr, __VA_ARGS__); } while(0)
+#define _debugprintf(...)   do { _debugprintf1(__VA_ARGS__); fprintf(stderr, "\n"); } while (0) 
+#endif
 #else
 // #define _debugprintf(fmt, ...)  
 // #define _debugprintfhead(fmt, ...)
