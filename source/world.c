@@ -20,7 +20,7 @@ World_Entity_Iterator world_entity_iterator_begin(World* world, Serializer* seri
 
   result.world = world;
   result.serializer = serializer;
-  result.read_count = -1;
+  result.read_count = 0;
   world_entity_iterator_advance(&result);
 
   return result;
@@ -28,7 +28,7 @@ World_Entity_Iterator world_entity_iterator_begin(World* world, Serializer* seri
 
 int world_entity_iterator_complete(World_Entity_Iterator* iterator)
 {
-  if (iterator->read_count >= (int32_t)iterator->world->entities_count) {
+  if (iterator->read_count > (int32_t)iterator->world->entities_count) {
     return 1;
   }
 
@@ -40,17 +40,20 @@ void world_entity_iterator_advance(World_Entity_Iterator* iterator)
   int32_t remaining_read_size;
   iterator->entity = (World_Entity*) iterator->_entity_buffer;
 
-  serializer_read_into_bytes(iterator->serializer,
-                             iterator->_entity_buffer,
-                             sizeof(World_Entity));
+  if (!(iterator->read_count >= (int32_t)iterator->world->entities_count)) {
+    serializer_read_into_bytes(iterator->serializer,
+                               iterator->_entity_buffer,
+                               sizeof(World_Entity));
 
-  remaining_read_size = iterator->entity->size - sizeof(World_Entity);
+    remaining_read_size = iterator->entity->size - sizeof(World_Entity);
 
-  assert(remaining_read_size >= 0 && "[WORLD_ENTITY_ITERATOR] it should not be possible to have a remaining_read_size less than zero. Improperly formed entity?");
+    assert(remaining_read_size >= 0 && "[WORLD_ENTITY_ITERATOR] it should not be possible to have a remaining_read_size less than zero. Improperly formed entity?");
 
-  serializer_read_into_bytes(iterator->serializer,
-                             iterator->_entity_buffer + sizeof(World_Entity),
-                             remaining_read_size);
+    serializer_read_into_bytes(iterator->serializer,
+                               iterator->_entity_buffer + sizeof(World_Entity),
+                               remaining_read_size);
+
+  }
 
   iterator->read_count++;
 }
