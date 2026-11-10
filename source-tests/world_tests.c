@@ -89,13 +89,14 @@ void add_stage_end_region(
 // Basically the same as if you had loaded from
 // a file. Just skipping the file part.
 //
-uint8_t* setup_simple_world_for_test(void)
+uint8_t* setup_simple_world_for_test(size_t* out_size)
 {
   World* as_world;
   uint32_t total_size;
   uint32_t size;
   uint32_t entity_count;
   uint8_t* result;
+  uint8_t* end_alloc;
 
   //
   // Hard-coded world for serialization testing.
@@ -111,7 +112,7 @@ uint8_t* setup_simple_world_for_test(void)
     1, 1, 1, 1, 1, 1, 1, 1,
   };
 
-  result = memory_arena_push_unaligned(arena, sizeof(World));
+  result = memory_arena_push_unaligned(arena, sizeof(*as_world));
   as_world = (World*) result;
   as_world->version        = WORLD_CURRENT_VERSION;
 
@@ -140,12 +141,36 @@ uint8_t* setup_simple_world_for_test(void)
   as_world->size           = size;
   as_world->total_size     = total_size;
   as_world->entities_count = entity_count;
+  end_alloc = memory_arena_push_unaligned(arena, 0);
+  *out_size = (end_alloc - result);
+
   return result;
+}
+
+void assert_tile_is_solid(World_Tile t)
+{
+  fprintf(stderr, "Testing tile at (%d, %d, %d flags).\n", t.x, t.y, t.flags);
+  assert(((t.flags & WORLD_TILE_FLAG_SOLID)>0) && "A tile that should be solid is not!");
 }
 
 void test_world_serialization_and_iteration_usage_scenario(void)
 {
-  setup_simple_world_for_test();
+  Serializer serializer;
+  World*     world;
+  uint8_t*   world_buffer;
+  size_t     world_buffer_size;
+
+  world_buffer = setup_simple_world_for_test(&world_buffer_size);
+  serializer   = serializer_from_memory(world_buffer, world_buffer_size);
+
+  world = world_read_from_serializer(arena, &serializer);
+
+  assert((world->world_w == 8) && "simple world width is not correct");
+  assert((world->world_h == 8) && "simple world height is not correct");
+
+  assert_tile_is_solid(world_get_tile_at(world, 0, 0));
+  assert_tile_is_solid(world_get_tile_at(world, 0, 4096));
+  assert_tile_is_solid(world_get_tile_at(world, 4*4096, 4*4096));
 }
 
 int main(void)
