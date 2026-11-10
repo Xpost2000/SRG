@@ -8,7 +8,10 @@
 #include <string.h>
 #include <limits.h>
 #include <stdio.h>
+
+#ifndef _WIN32
 #include <sys/fcntl.h>
+#endif
 
 inline static char* __shorten_path_length(char* original, int depth) {
     if (depth < 0) depth = 1;
