@@ -20,6 +20,21 @@ uint8_t g_memory_buffer[Kilobyte(100)];
 Memory_Arena* arena;
 
 //
+// Hard-coded world for serialization testing.
+//
+uint8_t testworld1[8*8] = {
+  1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 0, 0, 1, 1, 1,
+  1, 1, 1, 0, 0, 1, 1, 1,
+  1, 1, 1, 0, 0, 1, 1, 1,
+  1, 1, 1, 0, 0, 1, 1, 1,
+  1, 0, 0, 0, 0, 0, 0, 1,
+  1, 0, 0, 1, 1, 0, 0, 1,
+  1, 1, 1, 1, 1, 1, 1, 1,
+};
+
+
+//
 // NOTE(jerry):
 // this is unhygenic as fuck
 //
@@ -89,7 +104,7 @@ void add_stage_end_region(
 // Basically the same as if you had loaded from
 // a file. Just skipping the file part.
 //
-uint8_t* setup_simple_world_for_test(size_t* out_size)
+uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t world_w, int32_t world_h)
 {
   World* as_world;
   uint32_t total_size;
@@ -97,20 +112,9 @@ uint8_t* setup_simple_world_for_test(size_t* out_size)
   uint32_t entity_count;
   uint8_t* result;
   uint8_t* end_alloc;
+  size_t   world_byte_size;
 
-  //
-  // Hard-coded world for serialization testing.
-  //
-  uint8_t world[8*8] = {
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 0, 0, 1, 1, 1,
-    1, 1, 1, 0, 0, 1, 1, 1,
-    1, 1, 1, 0, 0, 1, 1, 1,
-    1, 1, 1, 0, 0, 1, 1, 1,
-    1, 0, 0, 0, 0, 0, 0, 1,
-    1, 0, 0, 1, 1, 0, 0, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-  };
+  world_byte_size = sizeof(*world) * world_w * world_h;
 
   result = memory_arena_push_unaligned(arena, sizeof(*as_world));
   as_world = (World*) result;
@@ -119,18 +123,18 @@ uint8_t* setup_simple_world_for_test(size_t* out_size)
   size       = sizeof(*as_world);
   total_size = sizeof(*as_world);
 
-  as_world->world_w        = 8;
-  as_world->world_h        = 8;
+  as_world->world_w        = world_w;
+  as_world->world_h        = world_h;
 
   //
   // "allocate" the world
   //
   {
     uint8_t* ptr;
-    total_size += sizeof(world);
-    size       += sizeof(world);
-    ptr         = memory_arena_push_unaligned(arena, sizeof(world));
-    memcpy(ptr, world, sizeof(world));
+    total_size += world_byte_size;
+    size       += world_byte_size;
+    ptr         = memory_arena_push_unaligned(arena, world_byte_size);
+    memcpy(ptr, world, world_byte_size);
   }
 
   //
@@ -153,6 +157,51 @@ void assert_tile_is_solid(World_Tile t)
   assert(((t.flags & WORLD_TILE_FLAG_SOLID)>0) && "A tile that should be solid is not!");
 }
 
+void assert_tile_is_not_solid(World_Tile t)
+{
+  fprintf(stderr, "Testing tile at (%d, %d, %d flags).\n", t.x, t.y, t.flags);
+  assert(!((t.flags & WORLD_TILE_FLAG_SOLID)>0) && "A tile that should be not solid is not!");
+}
+
+//
+// ATM cannot validate same width / height
+// can only validate the slice that's in the world.
+//
+void assert_world_tiles_properties_are_correct(World* world)
+{
+  int        y;
+  int        x;
+  int        real_x;
+  int        real_y;
+  World_Tile current_tile;
+
+  for (y = 0; y < world->world_h; ++y) {
+    for (x = 0; x < world->world_w; ++x) {
+      real_x = x * WORLD_GRID_UNIT_ONE;
+      real_y = y * WORLD_GRID_UNIT_ONE;
+      current_tile = world_get_tile_at(world, real_x, real_y);
+
+      if (world->data[y*world->world_w+x] > 0) {
+        assert_tile_is_solid(current_tile);
+      } else {
+        assert_tile_is_not_solid(current_tile);
+      }
+
+      assert(x == current_tile.x && "The tile coordinate does not appear correct");
+      assert(y == current_tile.y && "The tile coordinate does not appear correct");
+
+      fprintf(stderr, "%d", world->data[y*world->world_w+x]);
+    }
+    fprintf(stderr, "\n");
+  }
+  
+}
+
+void test_entity_iteration(World* world)
+{
+  
+}
+
 void test_world_serialization_and_iteration_usage_scenario(void)
 {
   Serializer serializer;
@@ -160,17 +209,20 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   uint8_t*   world_buffer;
   size_t     world_buffer_size;
 
-  world_buffer = setup_simple_world_for_test(&world_buffer_size);
+  world_buffer = setup_simple_world_for_test(&world_buffer_size, testworld1, 8, 8);
+  fprintf(stderr, "world size: %lld\n", world_buffer_size);
+
   serializer   = serializer_from_memory(world_buffer, world_buffer_size);
 
   world = world_read_from_serializer(arena, &serializer);
 
+  assert((world->version == WORLD_CURRENT_VERSION) && "world version header is not correct?");
   assert((world->world_w == 8) && "simple world width is not correct");
   assert((world->world_h == 8) && "simple world height is not correct");
 
-  assert_tile_is_solid(world_get_tile_at(world, 0, 0));
-  assert_tile_is_solid(world_get_tile_at(world, 0, 4096));
-  assert_tile_is_solid(world_get_tile_at(world, 4*4096, 4*4096));
+  assert_world_tiles_properties_are_correct(world);
+
+  test_entity_iteration(world);
 }
 
 int main(void)

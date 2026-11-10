@@ -3,9 +3,13 @@
 World* world_read_from_serializer(Memory_Arena* arena, Serializer* serializer)
 {
   World* result;
+  size_t tile_memory_size;
 
   result = (World*) memory_arena_push_aligned(arena, sizeof(*result));
   serializer_read_into_bytes(serializer, (uint8_t*) result, sizeof(*result));
+
+  tile_memory_size = sizeof(uint8_t) * result->world_w * result->world_h;
+  serializer_read_into_bytes(serializer, (uint8_t*) result+sizeof(*result), tile_memory_size);
 
   return result;
 }
