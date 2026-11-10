@@ -9,6 +9,8 @@
 // since we should never get unformatted data in-engine.
 //
 
+#undef RELEASE
+
 #include "common.h"
 #include "memory_arena.h"
 #include "world.h"
@@ -42,8 +44,8 @@ uint8_t testworld1[8*8] = {
   T* entity;                                                    \
   size_t                     size;                              \
   size = sizeof(T);                                             \
-  *entity_count++;                                              \
-  *total_size += size;                                          \
+  (*entity_count)++;                                            \
+  (*total_size) += size;                                                    \
   entity = (T*) memory_arena_push_unaligned(arena, size);       \
   entity->base.type       = E;                                  \
   entity->base.size       = size;
@@ -118,6 +120,7 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
 
   result = memory_arena_push_unaligned(arena, sizeof(*as_world));
   as_world = (World*) result;
+  entity_count = 0;
   as_world->version        = WORLD_CURRENT_VERSION;
 
   size       = sizeof(*as_world);
@@ -189,17 +192,24 @@ void assert_world_tiles_properties_are_correct(World* world)
 
       assert(x == current_tile.x && "The tile coordinate does not appear correct");
       assert(y == current_tile.y && "The tile coordinate does not appear correct");
-
-      fprintf(stderr, "%d", world->data[y*world->world_w+x]);
     }
-    fprintf(stderr, "\n");
   }
   
 }
 
-void test_entity_iteration(World* world)
+void test_entity_iteration(World* world, Serializer* serializer)
 {
-  
+  World_Entity_Iterator iterator;
+
+  for (iterator = world_entity_iterator_begin(world, serializer);
+       !world_entity_iterator_complete(&iterator);
+       world_entity_iterator_advance(&iterator)) {
+    _debug_world_entity_printout(iterator.entity);
+  }
+
+  fprintf(stderr, "world->entities_count = %d vs. iterator.read_count = %d\n",
+          world->entities_count, iterator.read_count);
+  assert(world->entities_count == iterator.read_count && "Iterator terminated prematurely or otherwise had a wrong count.");
 }
 
 void test_world_serialization_and_iteration_usage_scenario(void)
@@ -220,9 +230,14 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   assert((world->world_w == 8) && "simple world width is not correct");
   assert((world->world_h == 8) && "simple world height is not correct");
 
+  //
+  // for the simple world. I know I have this many entities so.
+  //
+  assert(world->entities_count == 1 && "simple world entity count is wrong");
+
   assert_world_tiles_properties_are_correct(world);
 
-  test_entity_iteration(world);
+  test_entity_iteration(world, &serializer);
 }
 
 int main(void)

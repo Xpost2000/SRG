@@ -80,3 +80,48 @@ World_Tile world_get_tile_at(World* world, int32_t x, int32_t y)
 
   return result;
 }
+
+#ifndef RELEASE
+
+//
+// NOTE(jerry):
+// man this really should just be doable
+// through reflection but whatever.
+//
+void _debug_world_entity_printout(World_Entity* entity)
+{
+  _debugprintf("Entity(type=%d, size=%d)", entity->type, entity->size);
+
+  switch (entity->type) {
+  case WORLD_ENTITY_TYPE_PLAYER_SPAWN: {
+    World_Entity_Player_Spawn* as_player_spawn = (World_Entity_Player_Spawn*) entity;
+    _debugprintf("World_Entity_Player_Spawn {\nx=%d\ny=%d\nlook_angle=%d\n}",
+                 as_player_spawn->x, as_player_spawn->y, as_player_spawn->look_angle);
+  } break;
+  case WORLD_ENTITY_TYPE_OBJECT_PROP: {
+    World_Entity_Object_Prop* as_object_prop = (World_Entity_Object_Prop*) entity;
+    _debugprintf("World_Entity_Object_Prop {\nx=%d\ny=%d\nangle=%d\nasset_id=%d\nflags=%u\n}",
+                 as_object_prop->x,
+                 as_object_prop->y,
+                 as_object_prop->angle,
+                 as_object_prop->asset_id,
+                 as_object_prop->flags);
+    
+  } break;
+  case WORLD_ENTITY_TYPE_STAGE_END_REGION: {
+    World_Entity_Stage_End_Region* as_end_region = (World_Entity_Stage_End_Region*) entity;
+    _debugprintf("World_Entity_Stage_End_Region {\nx=%d\ny=%d\nw=%d\nh=%d\nnext_level_id=%d\n}",
+                 as_end_region->x,
+                 as_end_region->y,
+                 as_end_region->w,
+                 as_end_region->h,
+                 as_end_region->next_level_id);
+  } break;
+  }
+}
+
+#else
+
+void _debug_world_entity_printout(World_Entity* entity) {}
+
+#endif

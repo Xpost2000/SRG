@@ -239,4 +239,6 @@ World_Entity_Iterator world_entity_iterator_begin(World* world, Serializer* seri
 int                   world_entity_iterator_complete(World_Entity_Iterator* iterator);
 void                  world_entity_iterator_advance(World_Entity_Iterator* iterator);
 
+void                  _debug_world_entity_printout(World_Entity* entity);
+
 #endif
