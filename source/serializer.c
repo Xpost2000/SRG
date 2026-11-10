@@ -64,6 +64,8 @@ uint8_t* serializer_read_bytes(Serializer* serializer, uint32_t bytes)
 {
   uint8_t* ptr;
 
+  assert(serializer->type == SERIALIZER_TYPE_MEMORY_BUFFER && "[SERIALIZER] due to the internal implementation, you have to use a memory buffer serializer for this to work.");
+
   ptr = serializer->data + serializer->read_cursor;
   serializer->read_cursor += bytes;
   _serializer_check_read_cursor(serializer);
@@ -73,7 +75,19 @@ uint8_t* serializer_read_bytes(Serializer* serializer, uint32_t bytes)
 
 void serializer_read_into_bytes(Serializer* serializer, uint8_t* dest, uint32_t bytes)
 {
-  uint8_t* start_of_ptr = serializer_read_bytes(serializer, bytes);
-
-  memcpy(dest, start_of_ptr, bytes);
+  switch (serializer->type) {
+  case SERIALIZER_TYPE_MEMORY_BUFFER: {
+    uint8_t* start_of_ptr = serializer_read_bytes(serializer, bytes);
+    memcpy(dest, start_of_ptr, bytes);
+  } break;
+  case SERIALIZER_TYPE_FILE_HANDLE: {
+    int read_bytes;
+    read_bytes = filesystem_read(serializer->file_handle, dest, bytes);
+    _debugprintf("[SERIALIZER] read_bytes(%d) vs. byte(%d)", read_bytes, bytes);
+    assert(read_bytes == bytes && "[SERIALIZER] file serializer did not read the same amount of bytes as requested.");
+  } break;
+  default: {
+    assert(0 && "unknown serializer type");
+  } break;
+  }
 }
