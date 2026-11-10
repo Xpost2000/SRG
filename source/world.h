@@ -66,44 +66,92 @@ enum World_Entity_Type {
   WORLD_ENTITY_TYPE_COUNT,
 };
 
-//
-// TODO(jerry): avoid compiling in debug
-//
+enum World_Entity_Object_Prop_Flags {
+  WORLD_ENTITY_OBJECT_PROP_FLAGS_NONE  = 0x0,
+  WORLD_ENTITY_OBJECT_PROP_FLAGS_SOLID = BIT(0),
+  WORLD_ENTITY_OBJECT_PROP_FLAGS_COUNT = 2,
+};
+
 static const char* g_world_entity_type_strings[] = {
   "(none)", "player_spawn", "object_prop", "stage_end_region",
 };
 
+//
+// The unit coordinates for everything assumes a 20.12 fixed point
+// so that way it feeds into the renderer pretty easily.
+//
+// ONE == 4096. So just use WORLD_GRID_UNIT_ONE
+//
+
 struct World_Entity {
-  uint16_t type;
+  uint16_t	type;
   //
   // This includes the size of the header itself
   // which is just 4 bytes, including whatever variable payload needs to exist.
   //
-  uint16_t size;
+  uint16_t	size;
+};
+
+struct World_Entity_Player_Spawn {
+  World_Entity	base;
+  int32_t	x;
+  int32_t	y;
+
+  //
+  // For simplicity, this uses the same angle system as the GTE
+  // 1024 = 90 degrees, 4096 = 360 degrees.
+  //
+  int16_t	look_angle;
+};
+
+struct World_Entity_Object_Prop {
+  World_Entity	base;
+  int32_t	x;
+  int32_t	y;
+
+  //
+  // NOTE(jerry): this is *should* be the id
+  // that's in fileslist.g.c, however we can't know
+  // the ID before the fileslist.g.c is generated,
+  // so maybe we should actually just make this the filehash
+  //
+  // it doesn't really matter, it's just a number, can resolve during discussion.
+  //
+  uint32_t      asset_id;
+  uint32_t	flags;
+  int16_t	angle;
+};
+
+struct World_Entity_Stage_End_Region {
+  World_Entity base;
+  int32_t      x;
+  int32_t      y;
+  int32_t      w;
+  int32_t      h;
+
+  //
+  // For if we transition to another level,
+  // references another level to load.
+  // If -1, who knows? I think that might mean the end of the game
+  // but also up to discussion for preliminary format.
+  //
+  int32_t      next_level_id;
 };
 
 struct World_Tile {
-  int16_t x;
-  int16_t y;
+  int16_t	x;
+  int16_t	y;
 
   //
   // Property flags. Mostly solid for now.
   //
-  int16_t flags;
+  int16_t	flags;
 };
 
 World*                world_read_from_serializer(Serializer* serializer);
 World_Entity_Iterator world_entity_iterator_begin(World* world);
 int                   world_entity_iterator_complete(World_Entity_Iterator* iterator);
 void                  world_entity_iterator_advance(World_Entity_Iterator* iterator);
-
-//
-// The tiles are expected to be in 22.10 fixed point
-// ONE == 4096.
-//
-// Use WORLD_GRID_UNIT_ONE as the world units (or convert to it from some other fixedpt)
-// unit.
-//
 World_Tile            world_get_tile_at(int32_t x, int32_t y);
 
 #endif
