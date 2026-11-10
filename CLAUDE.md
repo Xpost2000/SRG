@@ -37,8 +37,9 @@ to regenerate it.
 | `source/audio.*` | Audio layer game code uses: the instrument bank (`AUDIO_INSTRUMENTS`), MML song loading, `audio_sfx_play` (one note on an instrument), `audio_music_play/stop/fade_in/fade_out`, and the per-frame `audio_update()` sequencer. |
 | `source/mml.*` | MML song parser: text to note events. Only `audio.c` uses it. |
 | `res/audio/` | Instrument samples (`.wav`, each tuned to C4) and songs (`.mml` text). Samples are converted at build time; the `.VAG` outputs live in `run-tree/audio/` and are never committed. |
-| `engine-docs/` | Design docs per engine system (`input.md`, `audio.md`), the audio deep dive (`audio-research.md`) and the style guide (`code-guide.md`). |
-| `source/render.*` | Minimal double-buffered ordering-table renderer: flat `TILE` rectangles and debug text. |
+| `engine-docs/` | Design docs per engine system (`input.md`, `audio.md`, `render.md`), the audio deep dive (`audio-research.md`) and the style guide (`code-guide.md`). |
+| `source/render.*` | Double-buffered ordering-table renderer: 3D mesh commands, plus 2D rectangles, sprites and font text on their own ordering table. Flushes instead of crashing when 2D packets run out. |
+| `source/vram.*` | Texture and CLUT placement in VRAM: shelf packing and TIM upload. See `engine-docs/render.md`. |
 | `source/memory_card.*`, `source/cdfs.*`, `source/memory_arena.*` | Memory card save/load, CD file reads, bump allocator. |
 | `system-docs/` | SDK manuals: PDFs plus converted Markdown in `md/`. |
 | `toolchain-win64/` | Vendored GCC MIPS cross-compiler, PSn00bSDK, CMake, Ninja, PCSX-Redux. |

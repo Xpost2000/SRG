@@ -40,6 +40,9 @@ def get_texture_image_height_from_file(f):
 def get_fileext(filepath):
     return Path(filepath).suffix.lower();
 
+def get_files_containing_textures(files):
+    return [f for f in files if f[2] and fileext_indicates_image(get_fileext(f[2]))];
+
 def normalize_path(path: str) -> str:
     """
     Normalize CD path to \\ format.
@@ -174,7 +177,8 @@ def generate_fileslist_h(files: list, output_path: str):
         lines.append(f"#define {enum_name}   ({i})")
         c += 1
     lines.append(f"#define FIDX__COUNT ({c})");
-    
+    lines.append(f"#define TEXTURE_ORDERED_FILE_COUNT ({len(get_files_containing_textures(files))})");
+
     lines.extend([
         "",
         "",
@@ -232,7 +236,7 @@ def generate_fileslist_c(files: list, output_path: str):
         "{",
     ])
 
-    files_containing_textures = [f for f in files if f[2] and fileext_indicates_image(get_fileext(f[2]))];
+    files_containing_textures = get_files_containing_textures(files);
     ordered_files_containing_texture = sorted(files_containing_textures, reverse = True, key = get_texture_image_height_from_file);
 
     for i, (_, enum_name, filepath) in enumerate(ordered_files_containing_texture):

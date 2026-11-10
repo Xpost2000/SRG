@@ -15,11 +15,13 @@
 #define FIDX__GAME_EXE   (8)
 #define FIDX__RES_FONT1_SRGFNT   (9)
 #define FIDX__RES_FONT2_SRGFNT   (10)
-#define FIDX__RES_M1_BIN   (11)
-#define FIDX__RES_M2_BIN   (12)
-#define FIDX__RES_SAVICO_TIM   (13)
-#define FIDX__SYSTEM_CNF   (14)
-#define FIDX__COUNT (15)
+#define FIDX__RES_LOGO_TIM   (11)
+#define FIDX__RES_M1_BIN   (12)
+#define FIDX__RES_M2_BIN   (13)
+#define FIDX__RES_SAVICO_TIM   (14)
+#define FIDX__SYSTEM_CNF   (15)
+#define FIDX__COUNT (16)
+#define TEXTURE_ORDERED_FILE_COUNT (4)
 
 
 // String table for file paths (indexed by enum above)

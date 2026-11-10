@@ -20,6 +20,7 @@ const char* file_strings_table[] =
     "\\GAME.EXE",
     "\\RES\\FONT1.SRGFNT",
     "\\RES\\FONT2.SRGFNT",
+    "\\RES\\LOGO.TIM",
     "\\RES\\M1.BIN",
     "\\RES\\M2.BIN",
     "\\RES\\SAVICO.TIM",
@@ -30,6 +31,7 @@ const char* file_strings_table[] =
 uint16_t texture_ordered_file_id_table[] = 
 {
     FIDX__RES_FONT2_SRGFNT,
+    FIDX__RES_LOGO_TIM,
     FIDX__RES_FONT1_SRGFNT,
     FIDX__RES_SAVICO_TIM,
 };
