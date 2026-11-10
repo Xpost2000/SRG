@@ -63,6 +63,9 @@ static inline uint32_t swap32(uint32_t x)
 #define memory_zero(c, s) memset(c, 0, s)
 #define memory_zero_fixed(c) memory_zero(c, sizeof(c))
 
+#define BIT(x)   (1U   << (x))
+#define BIT64(x) (1ULL << (x))
+
 typedef struct Rectangle32  Rectangle32;
 typedef struct Vector2      Vector2;
 
