@@ -32,12 +32,14 @@ struct Serializer {
       uint8_t* data;
     };
     struct {
-      uint32_t file_handle; 
+      File_Handle file_handle; 
     };
   };
 };
 
 Serializer serializer_from_memory(uint8_t* data, uint32_t data_length);
+Serializer serializer_from_file_handle(File_Handle file_handle);
+Serializer serializer_from_file(const char* filepath);
 
 uint32_t serializer_readu32(Serializer* serializer);
 uint16_t serializer_readu16(Serializer* serializer);

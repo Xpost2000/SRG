@@ -29,11 +29,28 @@ Serializer serializer_from_memory(uint8_t* data, uint32_t data_length)
 {
   Serializer result;
 
+  result.type        = SERIALIZER_TYPE_MEMORY_BUFFER;
   result.read_cursor = 0;
   result.data_length = data_length;
   result.data	     = data;
 
   return result;
+}
+
+Serializer serializer_from_file_handle(uint32_t file_handle)
+{
+  Serializer result;
+
+  result.type        = SERIALIZER_TYPE_FILE_HANDLE;
+  result.file_handle = file_handle;
+
+  return result;
+}
+
+Serializer serializer_from_file(const char* filepath)
+{
+  File_Handle file_handle = filesystem_open(filepath);
+  return serializer_from_file_handle(file_handle);
 }
 
 _define_serializer_read_imp(uint32_t, u32);
