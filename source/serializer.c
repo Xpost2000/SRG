@@ -15,7 +15,7 @@
 static void _serializer_check_read_cursor(Serializer* serializer)
 {
   _debugprintf("[SERIALIZER] read_cursor(%d) vs data_length(%d)", serializer->read_cursor, serializer->data_length);
-  assert((serializer->read_cursor < serializer->data_length) && "[SERIALIZER] memory serializer outran the data source.");
+  assert((serializer->read_cursor <= serializer->data_length) && "[SERIALIZER] memory serializer outran the data source.");
 }
 
 Serializer serializer_from_memory(uint8_t* data, uint32_t data_length)
