@@ -73,6 +73,12 @@ enum World_Entity_Object_Prop_Flags {
   WORLD_ENTITY_OBJECT_PROP_FLAGS_COUNT = 2,
 };
 
+enum World_Tile_Flag {
+  WORLD_TILE_FLAG_NONE  = 0,
+  WORLD_TILE_FLAG_SOLID = BIT(0),
+  WORLD_TILE_FLAG_COUNT = 2,
+};
+
 static const char* g_world_entity_type_strings[] = {
   "(none)", "player_spawn", "object_prop", "stage_end_region",
 };
@@ -104,7 +110,11 @@ struct World {
   int32_t       world_h;
 
 #if 0
-  World_Tile   tiles[world_h * world_w];
+  //
+  // For V1, the tiles are just an uint8_t,
+  // but maybe this can be richer in the future.
+  //
+  uint8_t   tiles[world_h * world_w];
 
   //
   // NOTE(jerry):
@@ -174,6 +184,24 @@ struct World_Entity_Stage_End_Region {
   int32_t      next_level_id;
 };
 
+struct World_Entity_Iterator {
+  World*        world;
+  Serializer*   serializer;
+
+  //
+  // I really doubt any of the data-store
+  // entities will get this large, however
+  // these iterators are not meant to be stored
+  // for long, so I'm okay with fixed-sizing this.
+  //
+  // To simplify code.
+  //
+  uint8_t       _entity_buffer[1024];
+  World_Entity* entity;
+  
+  int           read_count;
+};
+
 struct World_Tile {
   //
   // Grid Coordinates
@@ -188,9 +216,21 @@ struct World_Tile {
 };
 
 World*                world_read_from_serializer(Memory_Arena* arena, Serializer* serializer);
-World_Entity_Iterator world_entity_iterator_begin(World* world);
+World_Tile            world_get_tile_at(World* world, int32_t x, int32_t y);
+
+//
+// While this *sounds* like an unusual choice for the parameter, the justification is that
+// the world data structure in memory doesn't really *hold* the memory for the data entities,
+// this is because they're useless at runtime, and it is not worth the slight code complexity to
+// *formally* load them and process them. (because then we need to deallocate them safely and such and such.)
+//
+// The data entities only really exist so that we can create *real* entities from them. In reality there is
+// only one narrow correct way to use the API, and this is a *load* time API. It's not meant to be used to
+// iterate over the world for the entities at gameplay or runtime.
+//
+World_Entity_Iterator world_entity_iterator_begin(World* world, Serializer* serializer);
+
 int                   world_entity_iterator_complete(World_Entity_Iterator* iterator);
 void                  world_entity_iterator_advance(World_Entity_Iterator* iterator);
-World_Tile            world_get_tile_at(int32_t x, int32_t y);
 
 #endif
