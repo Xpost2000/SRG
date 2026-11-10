@@ -9,8 +9,6 @@
 // since we should never get unformatted data in-engine.
 //
 
-#define NDEBUG
-
 #include "common.h"
 #include "memory_arena.h"
 #include "world.h"
@@ -20,6 +18,9 @@
 
 uint8_t g_memory_buffer[Kilobyte(100)];
 Memory_Arena* arena;
+
+int            world_entity_count;
+World_Entity** world_entities;
 
 //
 // Hard-coded world for serialization testing.
@@ -48,7 +49,8 @@ uint8_t testworld1[8*8] = {
   (*total_size) += size;                                                    \
   entity = (T*) memory_arena_push_unaligned(arena, size);       \
   entity->base.type       = E;                                  \
-  entity->base.size       = size;
+  entity->base.size       = size; \
+  world_entities[world_entity_count++] = (World_Entity*) entity;
 
 void add_player_spawn(
   uint32_t*     entity_count,
@@ -143,7 +145,11 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
   //
   // allocate test entities
   //
-  add_player_spawn(&entity_count, &total_size, 4096 * 4, 4096 * 4, 1024);
+  add_player_spawn(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 4, 1024);
+  add_object_prop(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 9, 2, 0x0, 2048);
+  add_object_prop(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
+  add_object_prop(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
+  add_stage_end_region(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
   
   as_world->size           = size;
   as_world->total_size     = total_size;
@@ -200,16 +206,41 @@ void assert_world_tiles_properties_are_correct(World* world)
 void test_entity_iteration(World* world, Serializer* serializer)
 {
   World_Entity_Iterator iterator;
+  int i = 0;
 
   for (iterator = world_entity_iterator_begin(world, serializer);
        !world_entity_iterator_complete(&iterator);
-       world_entity_iterator_advance(&iterator)) {
+       ++i, world_entity_iterator_advance(&iterator)) {
+    //
+    // NOTE(jerry):
+    // memcmp is normally not a good idea because of padding bytes causing things to break
+    // however in this case, it's fine because I'm trying to compare essentially the same
+    // memory regions.
+    //
+    // this is mainly exercising whether the packing works correctly since the entities are variably
+    // sized and not uniformly sized to make the level files smaller, and also that they are not loaded
+    // into memory, but "technically" streamed-in, and so it is possible to make a mistake doing this.
+    //
+    assert((memcmp(iterator.entity, world_entities[i], iterator.entity->size) == 0)
+           && "iterator failed to read out entity correctly");
     _debug_world_entity_printout(iterator.entity);
   }
 
   _debugprintf( "world->entities_count = %d vs. iterator.read_count = %d\n",
           world->entities_count, iterator.read_count);
-  assert(world->entities_count == iterator.read_count && "Iterator terminated prematurely or otherwise had a wrong count.");
+
+  //
+  // The minus one is because the iterator only knows to complete when it has read
+  // past the end.
+  //
+  assert(world->entities_count == (iterator.read_count-1) && "Iterator terminated prematurely or otherwise had a wrong count.");
+}
+
+void setup_test_preamble(void)
+{
+  arena = memory_arena_create("test-arena", g_memory_buffer, sizeof(g_memory_buffer));
+  world_entities = (World_Entity**)memory_arena_push_aligned(arena, sizeof(*world_entities) * 1024);
+  world_entity_count = 0;
 }
 
 void test_world_serialization_and_iteration_usage_scenario(void)
@@ -219,11 +250,12 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   uint8_t*   world_buffer;
   size_t     world_buffer_size;
 
+  setup_test_preamble();
+  
   world_buffer = setup_simple_world_for_test(&world_buffer_size, testworld1, 8, 8);
   _debugprintf( "world size: %lld\n", world_buffer_size);
 
   serializer   = serializer_from_memory(world_buffer, world_buffer_size);
-
   world = world_read_from_serializer(arena, &serializer);
 
   assert((world->version == WORLD_CURRENT_VERSION) && "world version header is not correct?");
@@ -233,7 +265,7 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   //
   // for the simple world. I know I have this many entities so.
   //
-  assert(world->entities_count == 1 && "simple world entity count is wrong");
+  assert(world->entities_count == world_entity_count && "simple world entity count is wrong");
 
   assert_world_tiles_properties_are_correct(world);
 
@@ -242,7 +274,6 @@ void test_world_serialization_and_iteration_usage_scenario(void)
 
 int main(void)
 {
-  arena = memory_arena_create("test-arena", g_memory_buffer, sizeof(g_memory_buffer));
 
   test_world_serialization_and_iteration_usage_scenario();
 
