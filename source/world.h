@@ -9,45 +9,8 @@
 // tilemap format for now, with a list of variably
 // tagged entities based on their type.
 //
-// My expected usage of the API is essentially:
+// see `world_tests.c` to see how exactly to use the APIs.
 //
-#if 0
-  void load_map_example() {
-    World_Entity_Iterator entity_iterator;
-    File_Handle level_world_file = filesystem_open("gamelevel.lvl");
-
-    //
-    // Arena is given to allocate, this world structure is technically the
-    // header of the world.
-    //
-    World*      world            = world_read_from_file(arena, level_world_file);
-
-    //
-    // To process all entities / instantiate all of them
-    // into their runtime variations.
-    //
-    for (entity_iterator = world_entity_iterator_begin(world);
-	 !world_entity_iterator_complete(&entity_iterator);
-	 world_entity_iterator_advance(&entity_iterator)) {
-      World_Entity* current_world_entity = entity_iterator.entity;
-
-      //
-      // dispatch on entity type
-      //
-      // these are sort of like "prefab" markers that we replace
-      // with the actual entities when they're spawned.
-      //
-      switch (current_world_entity->type) {
-      case XX: create_runtime_entity_xx(...);
-      case YY:
-      default:
-	assert(0 && "Unknown entity type encountered while loading?");
-	break;
-      }
-    }
-  }
-
-#endif
 
 #define WORLD_GRID_UNIT_ONE (4096)
 #define WORLD_CURRENT_VERSION (WORLD_VERSION_0)
