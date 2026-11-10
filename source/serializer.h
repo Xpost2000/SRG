@@ -2,6 +2,7 @@
 #define SERIALIZER_H
 
 #include "common.h"
+#include "filesystem.h"
 
 //
 // Memory-only serializer interface
@@ -16,10 +17,24 @@
 
 typedef struct Serializer Serializer;
 
+enum Serializer_Type {
+  SERIALIZER_TYPE_MEMORY_BUFFER,
+  SERIALIZER_TYPE_FILE_HANDLE,
+  SERIALIZER_TYPE_COUNT,
+};
+
 struct Serializer {
-  uint32_t read_cursor;
-  uint32_t data_length;
-  uint8_t* data;
+  uint8_t type;
+  union {
+    struct {
+      uint32_t read_cursor;
+      uint32_t data_length;
+      uint8_t* data;
+    };
+    struct {
+      uint32_t file_handle; 
+    };
+  };
 };
 
 Serializer serializer_from_memory(uint8_t* data, uint32_t data_length);

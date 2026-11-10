@@ -1,15 +1,22 @@
 #include "serializer.h"
 
-#define _define_serializer_read_imp(T, fnname)			\
-  T serializer_read##fnname(Serializer* serializer)		\
-  {								\
-    T result;							\
-								\
-    result = *(T*)(serializer->data + serializer->read_cursor); \
-    serializer->read_cursor += sizeof(T);			\
-    _serializer_check_read_cursor(serializer);			\
-								\
-    return result;						\
+#define _define_serializer_read_imp(T, fnname)			                                           \
+  T serializer_read##fnname(Serializer* serializer)		                                           \
+  {								                                           \
+    T result;							                                           \
+    switch (serializer->type) {                                                                            \
+	case SERIALIZER_TYPE_MEMORY_BUFFER: {                                                              \
+	    result = *(T*)(serializer->data + serializer->read_cursor);                                    \
+	    serializer->read_cursor += sizeof(T);			                                   \
+	    _serializer_check_read_cursor(serializer);			                                   \
+	} break;                                                                                           \
+	case SERIALIZER_TYPE_FILE_HANDLE: {                                                                \
+	    int fs_read_result;                                                                            \
+            fs_read_result = filesystem_read(serializer->file_handle, (uint8_t*)&result, sizeof(T));       \
+	    assert(fs_read_result == sizeof(T) && "[SERIALIZER] file serializer outran the data source."); \
+	} break;                                                                                           \
+    }                                                                                                      \
+    return result;						                                           \
   }
 
 static void _serializer_check_read_cursor(Serializer* serializer)
