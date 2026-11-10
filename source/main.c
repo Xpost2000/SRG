@@ -15,6 +15,7 @@
 // Nothing in here names a physical button. That is the point.
 //
 #include "common.h"
+#include "cdfs.h"
 
 #include "ps1_mem_limit.h"
 #include "filesystem.h"

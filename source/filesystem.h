@@ -2,7 +2,6 @@
 #define FILESYSTEM_H
 
 #include "common.h"
-#include "cdfs.h"
 
 #define MAX_OPENED_FILES (2)
 
