@@ -5,3 +5,4 @@
 @rem configuration for me though which is stupid :/
 
 gcc fontbuild.c -o fontbuild
+gcc worldcompile.c -o worldcompile -I ../source
