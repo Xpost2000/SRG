@@ -8,7 +8,10 @@
 #include <string.h>
 #include <limits.h>
 #include <stdio.h>
+
+#ifndef _WIN32
 #include <sys/fcntl.h>
+#endif
 
 inline static char* __shorten_path_length(char* original, int depth) {
     if (depth < 0) depth = 1;
@@ -26,14 +29,25 @@ inline static char* __shorten_path_length(char* original, int depth) {
 
 #define UNUSED(x) ((void)(x))
 
+#define Kilobyte(x) (x * 1024)
+#define Megabyte(x) (x * 1024 * 1024)
+#define Gigabyte(x) (x * 1024 * 1024 * 1024)
+#define Terabyte(x) (x * 1024 * 1024 * 1024 * 1024)
+
 #ifdef NDEBUG
 #define RELEASE
 #endif
 
 #ifndef RELEASE
+#ifdef PSN00BSDK
 #define _debugprintfhead()   printf("[%s:%d:%s()]: " , __shorten_path_length((char*)__FILE__, 2), __LINE__, __func__)
 #define _debugprintf1(...)  do { _debugprintfhead(); printf(__VA_ARGS__); } while(0)
 #define _debugprintf(...)   do { _debugprintf1(__VA_ARGS__); printf("\n"); } while (0) 
+#else
+#define _debugprintfhead()   fprintf(stderr, "[%s:%d:%s()]: " , __shorten_path_length((char*)__FILE__, 2), __LINE__, __func__)
+#define _debugprintf1(...)  do { _debugprintfhead(); fprintf(stderr, __VA_ARGS__); } while(0)
+#define _debugprintf(...)   do { _debugprintf1(__VA_ARGS__); fprintf(stderr, "\n"); } while (0) 
+#endif
 #else
 // #define _debugprintf(fmt, ...)  
 // #define _debugprintfhead(fmt, ...)
@@ -62,6 +76,9 @@ static inline uint32_t swap32(uint32_t x)
 
 #define memory_zero(c, s) memset(c, 0, s)
 #define memory_zero_fixed(c) memory_zero(c, sizeof(c))
+
+#define BIT(x)   (1U   << (x))
+#define BIT64(x) (1ULL << (x))
 
 typedef struct Rectangle32  Rectangle32;
 typedef struct Vector2      Vector2;
