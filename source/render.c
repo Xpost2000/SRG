@@ -97,7 +97,14 @@ MATRIX light_mtx = {
   ONE	  , ONE	  , 0
 };
 
-VECTOR cam_pos;
+//
+// The VIEW matrix: world -> camera. The GTE has no notion of a camera, it
+// holds exactly one rotation matrix and one translation vector and pushes
+// every vertex through them (RTPT). So "having a camera" means folding this
+// matrix into each mesh's own matrix before loading it, see
+// R_render_command_present_mesh.
+//
+static MATRIX g_view;
 
 //
 // Empties both ordering tables and joins them into one chain, so the GPU can be
@@ -222,10 +229,10 @@ void render_initialize(void)
   gte_SetGeomScreen(RENDER_SCREEN_WIDTH/2);
   gte_SetBackColor(32, 32, 32);
 
-  // temp camera setup
-  cam_pos.vx = 0;
-  cam_pos.vy = 0;
-  cam_pos.vz = -ONE * 550;
+  //
+  // Straight down +Z from 550 units back, for scenes that never set a camera.
+  //
+  R_render_set_camera((VECTOR) {0, 0, -ONE * 550}, (SVECTOR) {0, 0, 0});
 
   for (int i = 0; i < TRI_RENDER_PACKET_BUFFER_SIZE; ++i) {
     POLY_G3* g = &g_buffers[0].tri_packets[i * sizeof(POLY_G3)];
@@ -532,6 +539,29 @@ Render_Stats render_get_stats(void)
 // NOTE(jerry): new rendering code
 //
 
+//
+// The inverse of placing the camera in the world. To move the world into
+// camera space, first slide it by -position (camera at the origin), then turn
+// it by the camera's rotation. In GTE terms that is a matrix whose rotation is
+// R and whose translation is R * -position, which ApplyMatrixLV computes. Same
+// as the SDK's fpscam example.
+//
+// RotMatrix builds Rx * Ry * Rz, so yaw is applied before pitch: the camera
+// turns on the spot first and then tilts, which is what keeps the horizon level.
+//
+void R_render_set_camera(VECTOR position, SVECTOR rotation)
+{
+  VECTOR translation;
+
+  translation.vx = -position.vx >> 12;
+  translation.vy = -position.vy >> 12;
+  translation.vz = -position.vz >> 12;
+
+  RotMatrix(&rotation, &g_view);
+  ApplyMatrixLV(&g_view, &translation, &translation);
+  TransMatrix(&g_view, &translation);
+}
+
 void R_render_new_frame(void)
 {
   g_render_command_count = 0;
@@ -613,6 +643,7 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   int          i;
   int          z;
 
+  MATRIX  model_matrix;
   MATRIX  xform_matrix;
   MATRIX  local_light_matrix;
   SVECTOR rotation_vector;
@@ -628,18 +659,25 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   translation_vector.vy = mesh_command->position.vy >> 12;
   translation_vector.vz = mesh_command->position.vz >> 12;
 
-  translation_vector.vx += -cam_pos.vx >> 12;
-  translation_vector.vy += -cam_pos.vy >> 12;
-  translation_vector.vz += -cam_pos.vz >> 12;
-
   //
   // NOTE(jerry):
   // the fixed point dimensions are 4096 = 360 degrees
   //
-  RotMatrix(&rotation_vector, &xform_matrix);
-  TransMatrix(&xform_matrix, &translation_vector);
-  MulMatrix0(&light_mtx, &xform_matrix, &local_light_matrix);
-  ScaleMatrix(&xform_matrix, &scale_vector);
+  // The MODEL matrix (mesh -> world) is built first. The light matrix is taken
+  // from it BEFORE the view goes in, so lights stay fixed in the world and do
+  // not swing around with the camera.
+  //
+  RotMatrix(&rotation_vector, &model_matrix);
+  TransMatrix(&model_matrix, &translation_vector);
+  MulMatrix0(&light_mtx, &model_matrix, &local_light_matrix);
+  ScaleMatrix(&model_matrix, &scale_vector);
+
+  //
+  //   xform = VIEW * MODEL
+  //   rotation    = view.rot * model.rot
+  //   translation = view.rot * model.trans + view.trans
+  //
+  CompMatrixLV(&g_view, &model_matrix, &xform_matrix);
 
   //
   // NOTE(jerry):

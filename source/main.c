@@ -1,11 +1,11 @@
 //
-// INPUT TEST SCENE
+// TEST SCENE
 //
-// A coloured box you push around with the D-pad, plus a pause menu. It
-// exists to exercise the input action layer end to end so anyone can plug in
-// a pad (real or emulated) and see:
+// A cube you walk around a 3D floor with the D-pad, watched by the follow
+// camera (camera.h), plus a pause menu. It exists to exercise the engine end
+// to end so anyone can plug in a pad (real or emulated) and see:
 //
-//   - gameplay schema:  every one of the 16 buttons does something visible
+//   - gameplay schema:  screen-relative movement, quarter turns of the camera
 //   - UI schema:        menu navigation with auto-repeat, confirm, cancel
 //   - presets:          switching Type A <-> Type B live, saving the choice
 //                       to the memory card, and reloading it
@@ -22,6 +22,7 @@
 #include "input_pad.h"
 #include "input_action.h"
 #include "render.h"
+#include "camera.h"
 #include "font.h"
 #include "vram.h"
 #include "audio.h"
@@ -32,7 +33,6 @@
 //
 #include <psxgpu.h>
 
-static int d = -2572;
 static int last_vblank = 0;
 static int vblank_now = 0;
 static int frame_divisor = 0;
@@ -189,15 +189,14 @@ struct Game_Settings {
 //  Scene state
 // ----------------------------------------------------------------------------
 
-#define BOX_SPEED_NORMAL (2)  // pixels per frame
-#define BOX_SPEED_BOOST  (5)
-#define BOX_SPEED_SLOW   (1)
-#define BOX_SIZE_SMALL   (12)
-#define BOX_SIZE_NORMAL  (32)
-#define BOX_SIZE_LARGE   (64)
+#define PLAYER_SPEED     (4)  // world units per frame
+#define PLAYER_SPEED_RUN (10)
 
-#define MARKER_CAPACITY (24)
-#define MARKER_SIZE     (4)
+//
+// The middle of the floor slab, standing on it: the slab's top is at
+// y = 200 - 25, and the player cube is 50 tall (Y points down).
+//
+#define PLAYER_START ((VECTOR) {0, ONE * 150, ONE * 200})
 
 #define LOGO_SPEED       (2)  // pixels per frame, each axis
 #define LOGO_CAPTION     ("RETRO")
@@ -232,12 +231,8 @@ struct Test_Scene {
   int           mode; // Scene_Mode
   Game_Settings settings;
 
-  Rectangle32   box;
-  int           box_color_index;
-  int           box_outline;
-
-  Vector2       markers[MARKER_CAPACITY];
-  int           marker_count;
+  VECTOR        player_position; // 20.12 world units
+  Camera        camera;
 
   int           menu_cursor; // Menu_Item
   char          status[48];  // last save / load result, shown on screen
@@ -246,14 +241,6 @@ struct Test_Scene {
   Vector2       logo_velocity;
   int           logo_color_index;
   int           render_stress; // deliberately overflow the 2D packet buffer
-};
-
-static const uint8_t g_box_colors[][3] = {
-  { 255, 200,  40 },
-  {  60, 220, 120 },
-  {  80, 140, 255 },
-  { 255,  90,  90 },
-  { 230, 230, 230 },
 };
 
 //
@@ -284,15 +271,11 @@ static const char* const g_action_labels[INPUT_ACTION_COUNT] = {
   [INPUT_ACTION_MOVE_DOWN]      = "DOWN",
   [INPUT_ACTION_MOVE_LEFT]      = "LEFT",
   [INPUT_ACTION_MOVE_RIGHT]     = "RIGHT",
-  [INPUT_ACTION_COLOR_NEXT]     = "COLOR+",
-  [INPUT_ACTION_COLOR_PREV]     = "COLOR-",
-  [INPUT_ACTION_GROW]           = "GROW",
-  [INPUT_ACTION_SHRINK]         = "SHRINK",
-  [INPUT_ACTION_BOOST]          = "BOOST",
-  [INPUT_ACTION_SLOW]           = "SLOW",
-  [INPUT_ACTION_DROP_MARKER]    = "MARKER",
-  [INPUT_ACTION_CLEAR_MARKERS]  = "CLEAR",
-  [INPUT_ACTION_TOGGLE_OUTLINE] = "OUTLINE",
+  [INPUT_ACTION_RUN]            = "RUN",
+  [INPUT_ACTION_CAMERA_LEFT]    = "CAM L",
+  [INPUT_ACTION_CAMERA_RIGHT]   = "CAM R",
+  [INPUT_ACTION_MESHES_MORE]    = "MESHES+",
+  [INPUT_ACTION_MESHES_FEWER]   = "MESHES-",
   [INPUT_ACTION_RESET_POSITION] = "RESET",
   [INPUT_ACTION_HELP]           = "HELP",
   [INPUT_ACTION_PAUSE]          = "PAUSE",
@@ -416,7 +399,7 @@ static void music_toggle(Test_Scene* scene)
 //
 // Opening or closing the menu is nothing more than pointing both pads at a
 // different schema. From the next poll the same physical button means
-// UI_CONFIRM instead of COLOR_NEXT, and COLOR_NEXT can no longer fire at all.
+// UI_CANCEL instead of CAMERA_RIGHT, and CAMERA_RIGHT can no longer fire at all.
 //
 static void scene_enter_gameplay(Test_Scene* scene)
 {
@@ -435,12 +418,14 @@ static void scene_enter_menu(Test_Scene* scene)
   }
 }
 
-static void scene_reset_box(Test_Scene* scene)
+//
+// The camera snaps rather than eases here, otherwise it would visibly fly
+// across the floor after a teleport.
+//
+static void scene_reset_player(Test_Scene* scene)
 {
-  scene->box.x = (RENDER_SCREEN_WIDTH  - BOX_SIZE_NORMAL) / 2;
-  scene->box.y = (RENDER_SCREEN_HEIGHT - BOX_SIZE_NORMAL) / 2;
-  scene->box.w = BOX_SIZE_NORMAL;
-  scene->box.h = BOX_SIZE_NORMAL;
+  scene->player_position = PLAYER_START;
+  camera_initialize(&scene->camera, scene->player_position);
 }
 
 //
@@ -461,74 +446,51 @@ static void settings_cycle_schema(Test_Scene* scene, int pad_index, int directio
 
 static void scene_update_gameplay(Test_Scene* scene)
 {
-  int color_count = array_count(g_box_colors);
-  int dx          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT) * (vblank_now - last_vblank);
-  int dy          = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_UP,   INPUT_ACTION_MOVE_DOWN) * (vblank_now - last_vblank);
-  int speed       = BOX_SPEED_NORMAL;
-  int target_size = BOX_SIZE_NORMAL;
+  int    forward = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_DOWN, INPUT_ACTION_MOVE_UP);
+  int    right   = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT);
+  int    speed   = input_action_held(P1_PAD, INPUT_ACTION_RUN) ? PLAYER_SPEED_RUN : PLAYER_SPEED;
+  VECTOR direction;
 
   //
-  // Held things.
+  // Movement is relative to the SCREEN, not the world: up on the D-pad walks
+  // up the screen whichever way the camera faces. The direction is 4.12 and
+  // the position 20.12, so direction * whole units lands in the right format.
   //
-  if (input_action_held(P1_PAD, INPUT_ACTION_BOOST))  speed = BOX_SPEED_BOOST;
-  if (input_action_held(P1_PAD, INPUT_ACTION_SLOW))   speed = BOX_SPEED_SLOW;
-  if (input_action_held(P1_PAD, INPUT_ACTION_GROW))   target_size = BOX_SIZE_LARGE;
-  if (input_action_held(P1_PAD, INPUT_ACTION_SHRINK)) target_size = BOX_SIZE_SMALL;
-
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_GROW))  intensity++;
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_SHRINK))  intensity--;
-
-  d += dx * 4;
-  scene->box.x += dx * speed;
-  scene->box.y += dy * speed;
-
-  // ease the size towards the target, 2 px per frame, around the centre
-  if (scene->box.w < target_size) { scene->box.w += 2; scene->box.x -= 1; scene->box.y -= 1; }
-  if (scene->box.w > target_size) { scene->box.w -= 2; scene->box.x += 1; scene->box.y += 1; }
-  scene->box.h = scene->box.w;
-
-  scene->box.x = clamp(scene->box.x, RENDER_SCREEN_WIDTH  - scene->box.w, 0);
-  scene->box.y = clamp(scene->box.y, RENDER_SCREEN_HEIGHT - scene->box.h, 0);
+  direction = camera_ground_direction(&scene->camera, forward, right);
+  scene->player_position.vx += direction.vx * speed * frame_divisor;
+  scene->player_position.vz += direction.vz * speed * frame_divisor;
 
   //
   // Tapped things. pressed() is true for exactly one frame per press.
   //
+  // The camera turns make a noise so the voice pool can be heard working:
+  // mash them and the blips overlap instead of cutting each other off. The
+  // other direction plays the same instrument an octave down to show pitch
+  // is free.
   //
-  // Every tap makes a noise so the voice pool can be heard working: mash
-  // these and the blips overlap instead of cutting each other off. COLOR-
-  // plays the same instrument an octave down to show pitch is free, and
-  // CLEAR plays a snare from the same bank the music uses.
-  //
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_NEXT)) {
-    scene->box_color_index = (scene->box_color_index + 1) % color_count;
-    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
-  }
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_COLOR_PREV)) {
-    scene->box_color_index = (scene->box_color_index + color_count - 1) % color_count;
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_LEFT)) {
+    camera_turn(&scene->camera, -1);
     audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT - 12, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_DROP_MARKER) && scene->marker_count < MARKER_CAPACITY) {
-    Vector2* marker = &scene->markers[scene->marker_count++];
-    marker->x = scene->box.x + scene->box.w / 2 - MARKER_SIZE / 2;
-    marker->y = scene->box.y + scene->box.h / 2 - MARKER_SIZE / 2;
-    // panned to where the box is: left edge = left speaker
-    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT,
-                   AUDIO_VOLUME_MAX - (AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH),
-                   AUDIO_VOLUME_MAX * marker->x / RENDER_SCREEN_WIDTH);
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_RIGHT)) {
+    camera_turn(&scene->camera, +1);
+    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_CLEAR_MARKERS)) {
-    scene->marker_count = 0;
-    audio_sfx_play(AUDIO_INSTRUMENT_SNARE, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_MESHES_MORE)) {
+    intensity++;
   }
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_TOGGLE_OUTLINE)) {
-    scene->box_outline ^= 1;
+  if (input_action_pressed(P1_PAD, INPUT_ACTION_MESHES_FEWER)) {
+    intensity = max(intensity - 1, 0);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_RESET_POSITION)) {
-    scene_reset_box(scene);
+    scene_reset_player(scene);
+    audio_sfx_play(AUDIO_INSTRUMENT_SNARE, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_PAUSE)) {
     scene_enter_menu(scene);
   }
+
+  camera_update(&scene->camera, scene->player_position, frame_divisor);
 }
 
 static void scene_update_menu(Test_Scene* scene)
@@ -673,25 +635,6 @@ static void draw_help_overlay(int pad_index)
   }
 }
 
-static void draw_box(Test_Scene* scene)
-{
-  const uint8_t* color = g_box_colors[scene->box_color_index];
-  Rectangle32    b     = scene->box;
-
-  if (scene->box_outline) {
-    render_tile(b.x,           b.y,           b.w, 2,   color[0], color[1], color[2], 1);
-    render_tile(b.x,           b.y + b.h - 2, b.w, 2,   color[0], color[1], color[2], 1);
-    render_tile(b.x,           b.y,           2,   b.h, color[0], color[1], color[2], 1);
-    render_tile(b.x + b.w - 2, b.y,           2,   b.h, color[0], color[1], color[2], 1);
-  } else {
-    render_tile(b.x, b.y, b.w, b.h, color[0], color[1], color[2], 1);
-  }
-
-  for (int i = 0; i < scene->marker_count; ++i) {
-    render_tile(scene->markers[i].x, scene->markers[i].y, MARKER_SIZE, MARKER_SIZE, 200, 200, 200, 3);
-  }
-}
-
 static void draw_menu(Test_Scene* scene)
 {
   char line[64];
@@ -755,9 +698,8 @@ static void scene_draw(Test_Scene* scene)
   }
 
   draw_logo(scene);
-  draw_box(scene);
 
-  sprintf(line, "2D PEAK: %d, FLUSH: %d, ANG: %d", stats.packets_2d_peak, stats.flushes_last_frame, d);
+  sprintf(line, "2D PEAK: %d, FLUSH: %d, YAW: %d", stats.packets_2d_peak, stats.flushes_last_frame, scene->camera.rotation.vy);
   render_text(8, 8, 0, line);
 
   draw_pad_debug_line(P1_PAD, 20);
@@ -911,7 +853,7 @@ int main(int argc, const char **argv)
   //
   g_song_theme = audio_song_load(MUSIC_TEST_PATH);
 
-  scene_reset_box(&scene);
+  scene_reset_player(&scene);
   scene.logo_position = (Vector2) {16, 16};
   scene.logo_velocity = (Vector2) {LOGO_SPEED, LOGO_SPEED};
   settings_load(&scene);
@@ -1014,20 +956,8 @@ int main(int argc, const char **argv)
     frame_divisor = vblank_now - last_vblank;
     scene_update(&scene);
     audio_update();
-    // draw another box!
-#if 0
-    {
-      static int e = 0;
-      R_render_push_mesh((Render_Command_Mesh) {
-	.position = { isin(e += (4096/120)) * 100, 0, 0 },
-	/* .position = { ONE * 200, 0, 0 }, */
-	.scale = { ONE, ONE, ONE },
-	.rotation = { 1024, 0, d},
-	.mesh = &g_m1
-      });
-      e+=4;
-    }
-#else
+    R_render_set_camera(scene.camera.position, scene.camera.rotation);
+
     {
       static int e = 0;
       int i;
@@ -1045,15 +975,23 @@ int main(int argc, const char **argv)
 	}
       }
 
+      // the floor
       R_render_push_mesh((Render_Command_Mesh) {
 	.position = { 0, ONE * 200, ONE * 200 },
 	.scale = { ONE*3, ONE/4, ONE*3 },
-	.rotation = { e, 0, 0, 0 },
+	.rotation = { 0, 0, 0, 0 },
+	.mesh = &g_testcube
+      });
+
+      // the player
+      R_render_push_mesh((Render_Command_Mesh) {
+	.position = scene.player_position,
+	.scale = { ONE/4, ONE/4, ONE/4 },
+	.rotation = { 0, 0, 0, 0 },
 	.mesh = &g_testcube
       });
       e += (4096/120) * frame_divisor;
     }
-#endif
 
     R_render_end_frame();
     scene_draw(&scene);
