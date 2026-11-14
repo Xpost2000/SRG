@@ -13,4 +13,8 @@ REM Configure CMake (includes fileslist generation as custom target)
 cmake --preset default .
 cmake --build ./run-tree
 
+cmake -S source-tests -B tests -G Ninja
+cmake --build tests
+ctest --test-dir tests --output-on-failure
+
 popd
