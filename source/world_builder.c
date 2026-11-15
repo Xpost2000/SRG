@@ -118,8 +118,6 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
     World_Entity  entity_header;
     World_Entity* e;
 
-    serializer_serialize_bytes(serializer, (uint8_t*) &entity_header, sizeof(entity_header));
-
     //
     // I've never figured out a good solution to not make this abstraction leak a little
     // because you need to have memory allocated to read something, but writing does
@@ -129,8 +127,14 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
       builder->entities[i] =
         (World_Entity*) memory_arena_push_unaligned(builder->arena, entity_header.size);
       memcpy(builder->entities[i], &entity_header, sizeof(entity_header));
+    } else {
+      //
+      // copy over the header portion
+      //
+      entity_header = *builder->entities[i];
     }
 
+    serializer_serialize_bytes(serializer, (uint8_t*) &entity_header, sizeof(entity_header));
     e = builder->entities[i];
     _debugprintf("e ptr: %p", e);
 

@@ -58,10 +58,11 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_stage_end_region(world_builder, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
   *out_size = world_builder_get_memory_required(world_builder);
+
   {
     int i;
     for (i = 0; i < world_builder->entity_count; ++i) {
-      _debugprintf("e[i] = %p", world_builder->entities[i]);
+      _debugprintf("e[i] = %p (%d)", world_builder->entities[i], world_builder->entities[i]->size);
     }
   }
 
@@ -135,9 +136,12 @@ void test_entity_iteration(World* world, Serializer* serializer)
     // sized and not uniformly sized to make the level files smaller, and also that they are not loaded
     // into memory, but "technically" streamed-in, and so it is possible to make a mistake doing this.
     //
+    _debugprintf("from iterator");
+    _debug_world_entity_printout(iterator.entity);
+    _debugprintf("from source (world builder)");
+    _debug_world_entity_printout(world_builder->entities[i]);
     assert((memcmp(iterator.entity, world_builder->entities[i], iterator.entity->size) == 0)
            && "iterator failed to read out entity correctly");
-    _debug_world_entity_printout(iterator.entity);
   }
 
   _debugprintf( "world->entities_count = %d vs. iterator.read_count = %d\n",
@@ -166,7 +170,7 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   setup_test_preamble();
   
   world_buffer = setup_simple_world_for_test(&world_buffer_size, testworld1, 8, 8);
-  _debugprintf( "world size: %lld\n", world_buffer_size);
+  _debugprintf( "world_buffer: %p, world size: %lld\n", world_buffer, world_buffer_size);
 
   serializer   = serializer_from_memory(world_buffer, world_buffer_size);
   world = world_read_from_serializer(arena, &serializer);
