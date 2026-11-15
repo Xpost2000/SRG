@@ -12,6 +12,7 @@
 #include "common.h"
 #include "memory_arena.h"
 #include "world.h"
+#include "world_builder.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,8 +20,7 @@
 uint8_t g_memory_buffer[Kilobyte(100)];
 Memory_Arena* arena;
 
-int            world_entity_count;
-World_Entity** world_entities;
+World_Builder* world_builder;
 
 //
 // Hard-coded world for serialization testing.
@@ -36,71 +36,6 @@ uint8_t testworld1[8*8] = {
   1, 1, 1, 1, 1, 1, 1, 1,
 };
 
-
-//
-// NOTE(jerry):
-// this is unhygenic as fuck
-//
-#define _new_entity_preamble(T, E)                              \
-  T* entity;                                                    \
-  size_t                     size;                              \
-  size = sizeof(T);                                             \
-  (*entity_count)++;                                            \
-  (*total_size) += size;                                                    \
-  entity = (T*) memory_arena_push_unaligned(arena, size);       \
-  entity->base.type       = E;                                  \
-  entity->base.size       = size; \
-  world_entities[world_entity_count++] = (World_Entity*) entity;
-
-void add_player_spawn(
-  uint32_t*     entity_count,
-  uint32_t*     total_size,
-  int32_t       x,
-  int32_t       y,
-  int16_t       look_angle)
-{
-  _new_entity_preamble(World_Entity_Player_Spawn, WORLD_ENTITY_TYPE_PLAYER_SPAWN);
-  entity->x          = x;
-  entity->y          = y;
-  entity->look_angle = look_angle;
-}
-
-void add_object_prop(
-  uint32_t* entity_count,
-  uint32_t* total_size,
-  int32_t   x,
-  int32_t   y,
-  uint32_t  asset_id,
-  uint32_t  flags,
-  int16_t   angle)
-{
-  _new_entity_preamble(World_Entity_Object_Prop, WORLD_ENTITY_TYPE_OBJECT_PROP);
-  entity->x        = x;
-  entity->y        = y;
-  entity->asset_id = asset_id;
-  entity->flags    = flags;
-  entity->angle    = angle;
-}
-
-void add_stage_end_region(
-  uint32_t* entity_count,
-  uint32_t* total_size,
-  int32_t   x,
-  int32_t   y,
-  int32_t   w,
-  int32_t   h,
-  int32_t   next_level_id)
-{
-  _new_entity_preamble(World_Entity_Stage_End_Region, WORLD_ENTITY_TYPE_STAGE_END_REGION);
-  entity->x = x;
-  entity->y = y;
-  entity->w = w;
-  entity->h = h;
-  entity->next_level_id = next_level_id;
-}
-
-#undef _new_entity_preamble
-
 //
 // Generates a raw memory buffer which should
 // qualify for a world.
@@ -110,9 +45,7 @@ void add_stage_end_region(
 //
 uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t world_w, int32_t world_h)
 {
-  World* as_world;
-  uint32_t total_size;
-  uint32_t size;
+  World*   as_world;
   uint32_t entity_count;
   uint8_t* result;
   uint8_t* end_alloc;
@@ -125,31 +58,24 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
   entity_count = 0;
   as_world->version        = WORLD_CURRENT_VERSION;
 
-  size       = sizeof(*as_world);
-  total_size = sizeof(*as_world);
-
-  as_world->world_w        = world_w;
-  as_world->world_h        = world_h;
+  world_builder_set_dimensions(world_builder, world_w, world_h);
 
   //
   // "allocate" the world
   //
   {
-    uint8_t* ptr;
-    total_size += world_byte_size;
-    size       += world_byte_size;
-    ptr         = memory_arena_push_unaligned(arena, world_byte_size);
+    uint8_t* ptr = world_builder->tile_storage;
     memcpy(ptr, world, world_byte_size);
   }
 
   //
   // allocate test entities
   //
-  add_player_spawn(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 4, 1024);
-  add_object_prop(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 9, 2, 0x0, 2048);
-  add_object_prop(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
-  add_object_prop(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
-  add_stage_end_region(&entity_count, &total_size, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
+  world_builder_add_player_spawn(world_builder, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 4, 1024);
+  world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 9, 2, 0x0, 2048);
+  world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
+  world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
+  world_builder_add_stage_end_region(world_builder, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
   
   as_world->size           = size;
   as_world->total_size     = total_size;
@@ -221,7 +147,7 @@ void test_entity_iteration(World* world, Serializer* serializer)
     // sized and not uniformly sized to make the level files smaller, and also that they are not loaded
     // into memory, but "technically" streamed-in, and so it is possible to make a mistake doing this.
     //
-    assert((memcmp(iterator.entity, world_entities[i], iterator.entity->size) == 0)
+    assert((memcmp(iterator.entity, world_builder->entities[i], iterator.entity->size) == 0)
            && "iterator failed to read out entity correctly");
     _debug_world_entity_printout(iterator.entity);
   }
@@ -239,8 +165,7 @@ void test_entity_iteration(World* world, Serializer* serializer)
 void setup_test_preamble(void)
 {
   arena = memory_arena_create("test-arena", g_memory_buffer, sizeof(g_memory_buffer));
-  world_entities = (World_Entity**)memory_arena_push_aligned(arena, sizeof(*world_entities) * 1024);
-  world_entity_count = 0;
+  world_builder = world_builder_create(arena);
 }
 
 void test_world_serialization_and_iteration_usage_scenario(void)
@@ -265,7 +190,7 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   //
   // for the simple world. I know I have this many entities so.
   //
-  assert(world->entities_count == world_entity_count && "simple world entity count is wrong");
+  assert(world->entities_count == world_builder->entity_count && "simple world entity count is wrong");
 
   assert_world_tiles_properties_are_correct(world);
 

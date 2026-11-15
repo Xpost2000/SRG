@@ -11,6 +11,7 @@
 
 #include "memory_arena.h"
 #include "world.h"
+#include "serializer.h"
 
 typedef struct World_Builder                     World_Builder;
 
@@ -24,7 +25,7 @@ struct World_Builder {
   int32_t         width;
   int32_t         height;
 
-  int32_t         total_size;
+  int32_t         entities_byte_size;
 
   World_Entity*   entities[4096];
   uint8_t         tile_storage[Kilobyte(16)];
@@ -53,5 +54,10 @@ void           world_builder_add_stage_end_region(World_Builder* builder,
 
 void           world_builder_set_dimensions(World_Builder* builder, int32_t w, int32_t h);
 void           world_builder_set_tile(World_Builder* builder, int32_t x, int32_t y, uint8_t tile_id);
+
+//
+// The arena doesn't necessarily have to be the one in World_Builder
+//
+void           world_builder_serialize_world(World_Builder* builder, Serializer* serializer);
 
 #endif

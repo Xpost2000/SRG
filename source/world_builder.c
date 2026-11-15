@@ -5,7 +5,7 @@
   size_t size;                              \
   size                                        = sizeof(T);                                             \
   (builder->entity_count)++;                                            \
-  (builder->total_size)                      += size;                                                    \
+  (builder->entities_byte_size)                      += size;                                                    \
   entity                                      = (T*) memory_arena_push_unaligned(builder->arena, size);       \
   entity->base.type                           = E;                                  \
   entity->base.size                           = size; \
@@ -74,4 +74,33 @@ void world_builder_set_dimensions(World_Builder* builder, int32_t w, int32_t h)
 void world_builder_set_tile(World_Builder* builder, int32_t x, int32_t y, uint8_t tile_id)
 {
   builder->tile_storage[y * builder->width + x] = tile_id;
+}
+
+void world_builder_serialize_world(World_Builder* builder, Serializer* serializer)
+{
+  World   world_for_header;
+  int32_t world_tile_size  = sizeof(uint8_t) * builder->width * builder->height;
+  int32_t base_size        = sizeof(World) + world_tile_size;
+  int32_t total_world_size = base_size + builder->entities_byte_size;
+  int     i;
+
+  world_for_header.version        = WORLD_CURRENT_VERSION;
+  world_for_header.total_size     = total_world_size;
+  world_for_header.size           = base_size;
+  world_for_header.entities_count = builder->entity_count;
+  world_for_header.world_w        = builder->width;
+  world_for_header.world_h        = builder->height;
+
+  serializer_serialize_bytes(serializer, &world_for_header, sizeof(world_for_header));
+
+  //
+  // serialize can technically read/write back, so going to use this to readback values
+  // just in that scenario
+  //
+  builder->width               = world_for_header.world_w;
+  builder->height              = world_for_header.world_h;
+  builder->entity_count        = world_for_header.entities_count;
+  builder->entities_byte_size  = world_for_header.total_size - world_for_header.size;
+
+  serializer_serialize_bytes(serializer, builder->tile_storage, builder->width * builder->height * sizeof(uint8_t));
 }
