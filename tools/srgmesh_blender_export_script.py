@@ -9,8 +9,18 @@ import bpy;
 import bmesh;
 import os;
 import sys
-from bin_helpers import *; # need to check if blender import works.
 from pathlib import Path;
+
+#
+# stupid little preamble cause of the way the blender virtual paths work...
+#
+blend_path = bpy.data.filepath;
+blend_path = Path(blend_path).parent;
+tools_path = Path(blend_path.parent) / 'tools';
+if tools_path not in sys.path:
+    sys.path.insert(0, str(tools_path));
+
+from bin_helpers import *;
 
 #
 # boilerplate script setup
@@ -69,6 +79,11 @@ with open(OUTPUT_FILE_NAME, "wb") as f:
         normal *= PSX_GTE_UNIT_SCALE_FACTOR;
         print("norm", normal);
         write_SVECTOR(f, normal.x, normal.y, normal.z);
+        
+    for _, _, uv in vertex_data:
+#        uv *= PSX_GTE_UNIT_SCALE_FACTOR;
+        print("uv", uv);
+#        write_SVECTOR(f, normal.x, normal.y, normal.z);
         
 print("wrote", OUTPUT_FILE_NAME);
 print("vtx count", vertex_count);
