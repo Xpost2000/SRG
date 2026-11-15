@@ -133,6 +133,7 @@ void filesystem_close(File_Handle file)
     return; 
   }
 
+  fflush(state->f);
   fclose(state->f);
   state->f = NULL;
 }
