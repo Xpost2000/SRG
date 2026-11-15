@@ -46,7 +46,6 @@ uint8_t testworld1[8*8] = {
 uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t world_w, int32_t world_h)
 {
   uint8_t* result;
-  uint8_t* end_alloc;
 
   world_builder_set_world_tile_data(world_builder, world_w, world_h, world);
 
@@ -58,9 +57,10 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_stage_end_region(world_builder, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
+  *out_size = world_builder_get_memory_required(world_builder);
 
-  end_alloc = memory_arena_push_unaligned(arena, 0);
-  *out_size = (end_alloc - result);
+  result = memory_arena_push_unaligned(arena, *out_size);
+  world_builder_build_world_in_memory(world_builder, result, *out_size);
 
   return result;
 }
