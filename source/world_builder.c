@@ -4,12 +4,13 @@
   T*     entity;                                                    \
   size_t size;                              \
   size                                        = sizeof(T);                                             \
-  (builder->entity_count)++;                                            \
   (builder->entities_byte_size)                      += size;                                                    \
+  _debugprintf("Allocing entity type: %s", #E); \
   entity                                      = (T*) memory_arena_push_unaligned(builder->arena, size);       \
   entity->base.type                           = E;                                  \
   entity->base.size                           = size; \
   builder->entities[builder->entity_count++]  = (World_Entity*) entity;\
+  _debugprintf("Finished setup for entity type: %s at (%p)", #E, builder->entities[builder->entity_count-1]); \
 
 
 World_Builder* world_builder_create(Memory_Arena* arena)
@@ -97,6 +98,7 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
   world_for_header.world_w        = builder->width;
   world_for_header.world_h        = builder->height;
 
+  _debugprintf("Serialize world header: %d bytes", sizeof(world_for_header));
   serializer_serialize_bytes(serializer, (uint8_t*) &world_for_header, sizeof(world_for_header));
 
   //
@@ -108,8 +110,10 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
   builder->entity_count        = world_for_header.entities_count;
   builder->entities_byte_size  = world_for_header.total_size - world_for_header.size;
 
+  _debugprintf("Serialize world tiles: %d bytes", builder->width * builder->height * sizeof(uint8_t));
   serializer_serialize_bytes(serializer, builder->tile_storage, builder->width * builder->height * sizeof(uint8_t));
 
+  _debugprintf("begin to serialize entities (%d to do)", builder->entity_count);
   for (i = 0 ; i < builder->entity_count; ++i) {
     World_Entity  entity_header;
     World_Entity* e;
@@ -128,6 +132,7 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
     }
 
     e = builder->entities[i];
+    _debugprintf("e ptr: %p", e);
 
     serializer_serialize_bytes(serializer, (uint8_t*) e, e->size - sizeof(entity_header));
   }
@@ -138,6 +143,11 @@ int32_t world_builder_get_memory_required(World_Builder* builder)
   int32_t world_tile_size  = sizeof(uint8_t) * builder->width * builder->height;
   int32_t base_size        = sizeof(World) + world_tile_size;
   int32_t total_world_size = base_size + builder->entities_byte_size;
+  _debugprintf("tile_size: %d, base_size: %d, entities_byte_size: %d, world_size: %d",
+               world_tile_size,
+               base_size,
+               builder->entities_byte_size,
+               total_world_size);
   return total_world_size;
 }
 
@@ -154,5 +164,6 @@ World* world_builder_build_world_in_memory(World_Builder* builder, uint8_t* memo
   serializer_set_mode(&memory_serializer, SERIALIZER_MODE_WRITE);
 
   world_builder_serialize_world(builder, &memory_serializer);
+
   return result;
 }

@@ -58,9 +58,18 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_stage_end_region(world_builder, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
   *out_size = world_builder_get_memory_required(world_builder);
+  {
+    int i;
+    for (i = 0; i < world_builder->entity_count; ++i) {
+      _debugprintf("e[i] = %p", world_builder->entities[i]);
+    }
+  }
 
+  _debugprintf("out_size = %d", *out_size);
   result = memory_arena_push_unaligned(arena, *out_size);
+  _debugprintf("Try to build world in memory");
   world_builder_build_world_in_memory(world_builder, result, *out_size);
+  _debugprintf("Finished world build in memory");
 
   return result;
 }
@@ -169,10 +178,13 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   //
   // for the simple world. I know I have this many entities so.
   //
+  _debugprintf("Test that the entity count is serialized/synced correctly");
   assert(world->entities_count == world_builder->entity_count && "simple world entity count is wrong");
 
+  _debugprintf("Test that the world tiles serialized correctly");
   assert_world_tiles_properties_are_correct(world);
 
+  _debugprintf("Test that the variable record sized entities can be iterated correctly");
   test_entity_iteration(world, &serializer);
 }
 
