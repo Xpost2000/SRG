@@ -321,17 +321,24 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  arena         = memory_arena_create("global-arena", memory, sizeof(memory));
-  tile_data     = memory_arena_push_unaligned(arena, Kilobyte(16));
-  world_builder = world_builder_create(arena);
 
   _debugprintf("processing (%d) file(s)", argc-1);
   for (i = 1; i < argc; ++i) {
+    Serializer serializer;
+
+    arena         = memory_arena_create("global-arena", memory, sizeof(memory));
+    tile_data     = memory_arena_push_unaligned(arena, Kilobyte(16));
+    world_builder = world_builder_create(arena);
+
     snprintf(filebufname, sizeof(filebufname), "%s.slvl", remove_suffix(argv[i]));
+    serializer    = serializer_from_file(filebufname);
+    serializer_set_mode(&serializer, SERIALIZER_MODE_WRITE);
 
     f = fopen(argv[i], "rb+");
     process_map_file(f);
 
+    world_builder_serialize_world(world_builder, &serializer);
+    filesystem_close(serializer.file_handle);
     fclose(f);
   }
 
