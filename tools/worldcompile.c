@@ -9,17 +9,20 @@
 #include "common.h"
 #include "world.h"
 #include "world_builder.h"
+#include "memory_arena.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-int     tile_count=0;
-int     world_width;
-int     world_height;
-uint8_t tile_data[Kilobyte(16)];
-
+int            tile_count = 0;
+int            world_width;
+int            world_height;
+uint8_t*       tile_data;
+uint8_t        memory[Kilobyte(256)];
+Memory_Arena*  arena;
+World_Builder* world_builder;
 
 //ascii to unsigned
 static uint32_t atou(char* s)
@@ -149,19 +152,12 @@ void read_tiles(FILE* f)
 
   world_width = max_x;
   world_height = lines;
+  world_builder_set_world_tile_data(world_builder, world_width, world_height, tile_data);
   _debugprintf("World dimensions: %d x %d", world_width, world_height);
-
-  for (i = 0; i < world_height; ++i) {
-    for (s = 0; s < world_width; ++s) {
-      printf("%c", tile_data[i * world_width + s]);
-    }
-    printf("\n");
-  }
 }
 
 void read_entities(FILE* f)
 {
-  
   char* line;
   char* tok;
   int   length;
@@ -201,6 +197,7 @@ void read_entities(FILE* f)
       look_angle = atoang4096(tok);
 
       _debugprintf("player_spawn: %d, %d, %d", x, y, look_angle);
+      world_builder_add_player_spawn(world_builder, x, y, look_angle);
     } else if (strcmp(tok, "end_stage_region") == 0) {
       int32_t x;
       int32_t y;
@@ -229,6 +226,7 @@ void read_entities(FILE* f)
       next_level_id = atoi(tok);
       
       _debugprintf("end_stage_region: %d, %d, %d, %d", x, y, w, h, next_level_id);
+      world_builder_add_stage_end_region(world_builder, x, y, w, h, next_level_id);
     } else if (strcmp(tok, "object_prop") == 0) {
       int32_t  x;
       int32_t  y;
@@ -257,11 +255,12 @@ void read_entities(FILE* f)
       look_angle = atoang4096(tok);
       
       _debugprintf("object_prop: %d, %d, %d, %d, %d", x, y, asset_id, flags, look_angle);
+      world_builder_add_object_prop(world_builder, x, y, asset_id, flags, look_angle);
     }
   }
 }
 
-static void process_map_file(FILE* f, FILE* fout)
+static void process_map_file(FILE* f)
 {
   char* line;
 
@@ -313,7 +312,6 @@ int main(int argc, char** argv)
 {
   int i;
   FILE* f;
-  FILE* fout;
   char  filebufname[4096];
 
   if (argc < 2) {
@@ -323,16 +321,17 @@ int main(int argc, char** argv)
     return 0;
   }
 
+  arena         = memory_arena_create("global-arena", memory, sizeof(memory));
+  tile_data     = memory_arena_push_unaligned(arena, Kilobyte(16));
+  world_builder = world_builder_create(arena);
+
   _debugprintf("processing (%d) file(s)", argc-1);
   for (i = 1; i < argc; ++i) {
     snprintf(filebufname, sizeof(filebufname), "%s.slvl", remove_suffix(argv[i]));
 
     f = fopen(argv[i], "rb+");
-    fout = fopen(filebufname, "wb+");
+    process_map_file(f);
 
-    process_map_file(f, fout);
-
-    fclose(fout);
     fclose(f);
   }
 
