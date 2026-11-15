@@ -97,7 +97,7 @@ MATRIX light_mtx = {
   ONE	  , ONE	  , 0
 };
 
-VECTOR cam_pos;
+static MATRIX g_view = { {{ONE, 0, 0}, {0, ONE, 0}, {0, 0, ONE}}, {0, 0, 0} };
 
 //
 // Empties both ordering tables and joins them into one chain, so the GPU can be
@@ -221,11 +221,6 @@ void render_initialize(void)
   gte_SetGeomOffset(RENDER_SCREEN_WIDTH/2, RENDER_SCREEN_HEIGHT/2);
   gte_SetGeomScreen(RENDER_SCREEN_WIDTH/2);
   gte_SetBackColor(32, 32, 32);
-
-  // temp camera setup
-  cam_pos.vx = 0;
-  cam_pos.vy = 0;
-  cam_pos.vz = -ONE * 550;
 
   for (int i = 0; i < TRI_RENDER_PACKET_BUFFER_SIZE; ++i) {
     POLY_G3* g = &g_buffers[0].tri_packets[i * sizeof(POLY_G3)];
@@ -532,6 +527,19 @@ Render_Stats render_get_stats(void)
 // NOTE(jerry): new rendering code
 //
 
+void R_render_set_camera(VECTOR position, SVECTOR rotation)
+{
+  VECTOR translation;
+
+  translation.vx = -position.vx >> 12;
+  translation.vy = -position.vy >> 12;
+  translation.vz = -position.vz >> 12;
+
+  RotMatrix(&rotation, &g_view);
+  ApplyMatrixLV(&g_view, &translation, &translation);
+  TransMatrix(&g_view, &translation);
+}
+
 void R_render_new_frame(void)
 {
   g_render_command_count = 0;
@@ -613,6 +621,7 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   int          i;
   int          z;
 
+  MATRIX  model_matrix;
   MATRIX  xform_matrix;
   MATRIX  local_light_matrix;
   SVECTOR rotation_vector;
@@ -628,18 +637,25 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
   translation_vector.vy = mesh_command->position.vy >> 12;
   translation_vector.vz = mesh_command->position.vz >> 12;
 
-  translation_vector.vx += -cam_pos.vx >> 12;
-  translation_vector.vy += -cam_pos.vy >> 12;
-  translation_vector.vz += -cam_pos.vz >> 12;
-
   //
   // NOTE(jerry):
   // the fixed point dimensions are 4096 = 360 degrees
   //
-  RotMatrix(&rotation_vector, &xform_matrix);
-  TransMatrix(&xform_matrix, &translation_vector);
-  MulMatrix0(&light_mtx, &xform_matrix, &local_light_matrix);
-  ScaleMatrix(&xform_matrix, &scale_vector);
+  // The MODEL matrix (mesh -> world) is built first. The light matrix is taken
+  // from it BEFORE the view goes in, so lights stay fixed in the world and do
+  // not swing around with the camera.
+  //
+  RotMatrix(&rotation_vector, &model_matrix);
+  TransMatrix(&model_matrix, &translation_vector);
+  MulMatrix0(&light_mtx, &model_matrix, &local_light_matrix);
+  ScaleMatrix(&model_matrix, &scale_vector);
+
+  //
+  //   xform = VIEW * MODEL
+  //   rotation    = view.rot * model.rot
+  //   translation = view.rot * model.trans + view.trans
+  //
+  CompMatrixLV(&g_view, &model_matrix, &xform_matrix);
 
   //
   // NOTE(jerry):
@@ -673,6 +689,24 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
 
     if (R_triangle_clip(triangle, z)) {
       continue;
+    }
+
+    //
+    // The PS1 has no depth buffer. Each triangle lands in the ordering table
+    // at its AVERAGE depth and the table is drawn back to front, so a big
+    // floor triangle gets one depth taken at its middle:
+    //
+    //   eye -->   [prop A]   . . floor middle . .   [prop B]
+    //             drawn after the floor              drawn BEFORE the floor,
+    //                                                then painted over by it
+    //
+    // Ground is what everything else stands on, so it can always go first:
+    // the last slot is the first one drawn. Ground meshes must be convex
+    // (back-face culling then keeps their own faces from overlapping), or
+    // their faces need sorting among themselves again.
+    //
+    if (mesh_command->ground) {
+      z = RENDER_OT_LENGTH - 1;
     }
 
     setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);

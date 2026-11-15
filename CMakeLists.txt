@@ -44,6 +44,7 @@ psn00bsdk_add_executable(game GPREL
 					source/memory_card.c
 					source/input_action.c
 					source/render.c
+					source/camera.c
 					source/vram.c
 					source/font.c
 					source/serializer.c

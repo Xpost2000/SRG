@@ -23,6 +23,7 @@
 #include "input_pad.h"
 #include "input_action.h"
 #include "render.h"
+#include "camera.h"
 #include "font.h"
 #include "vram.h"
 #include "audio.h"
@@ -200,6 +201,12 @@ struct Game_Settings {
 #define MARKER_CAPACITY (24)
 #define MARKER_SIZE     (4)
 
+//
+// The middle of the floor slab, standing on it: the slab's top is at
+// y = 200 - 25, and the player cube is 50 tall (Y points down).
+//
+#define PLAYER_START ((VECTOR) {0, ONE * 150, ONE * 200})
+
 #define LOGO_SPEED       (2)  // pixels per frame, each axis
 #define LOGO_CAPTION     ("RETRO")
 #define LOGO_CAPTION_GAP (2)
@@ -239,6 +246,9 @@ struct Test_Scene {
 
   Vector2       markers[MARKER_CAPACITY];
   int           marker_count;
+
+  VECTOR        player_position; // 20.12 world units
+  Camera        camera;
 
   int           menu_cursor; // Menu_Item
   char          status[48];  // last save / load result, shown on screen
@@ -530,6 +540,8 @@ static void scene_update_gameplay(Test_Scene* scene)
   if (input_action_pressed(P1_PAD, INPUT_ACTION_PAUSE)) {
     scene_enter_menu(scene);
   }
+
+  camera_update(&scene->camera, scene->player_position, frame_divisor);
 }
 
 static void scene_update_menu(Test_Scene* scene)
@@ -776,8 +788,11 @@ static void scene_draw(Test_Scene* scene)
     render_text(8, 220, 0, "HOLD HELP FOR BINDINGS   PAUSE FOR MENU");
   }
 
-  render_font_text(&g_font1, (Vector2) {100, 100}, "HI SRG TEAM", (Render_Color) {128, 128, 128}, 0);
-  render_font_text(&g_font2, (Vector2) {100, 116}, "Another Font,\nOh man!", (Render_Color) {128, 128, 128}, 0);
+  {
+    int y = 216 - 2 * g_font2.glyph_height - g_font1.glyph_height;
+    render_font_text(&g_font1, (Vector2) {8, y}, "HI SRG TEAM", (Render_Color) {128, 128, 128}, 0);
+    render_font_text(&g_font2, (Vector2) {8, y + g_font1.glyph_height}, "Another Font,\nOh man!", (Render_Color) {128, 128, 128}, 0);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -913,6 +928,8 @@ int main(int argc, const char **argv)
   g_song_theme = audio_song_load(MUSIC_TEST_PATH);
 
   scene_reset_box(&scene);
+  scene.player_position = PLAYER_START;
+  camera_initialize(&scene.camera, scene.player_position);
   scene.logo_position = (Vector2) {16, 16};
   scene.logo_velocity = (Vector2) {LOGO_SPEED, LOGO_SPEED};
   settings_load(&scene);
@@ -1015,20 +1032,8 @@ int main(int argc, const char **argv)
     frame_divisor = vblank_now - last_vblank;
     scene_update(&scene);
     audio_update();
-    // draw another box!
-#if 0
-    {
-      static int e = 0;
-      R_render_push_mesh((Render_Command_Mesh) {
-	.position = { isin(e += (4096/120)) * 100, 0, 0 },
-	/* .position = { ONE * 200, 0, 0 }, */
-	.scale = { ONE, ONE, ONE },
-	.rotation = { 1024, 0, d},
-	.mesh = &g_m1
-      });
-      e+=4;
-    }
-#else
+    R_render_set_camera(scene.camera.position, scene.camera.rotation);
+
     {
       static int e = 0;
       int i;
@@ -1036,8 +1041,13 @@ int main(int argc, const char **argv)
 
       for (i = 0; i < 3; ++i) {
 	for (j = 0; j < 3 * intensity; ++j) {
+	  //
+	  // The props hang 151 units below their origin once rotated (M1.BIN's
+	  // local z runs -151..59, and this rotation turns -z into world down),
+	  // so y = 20 stands them on the slab top at y = 175.
+	  //
 	  R_render_push_mesh((Render_Command_Mesh) {
-	    .position = { (j * 200 - 240) * ONE + isin(e) * 100, ONE * 50, ONE * (40 + 150 * i) },
+	    .position = { (j * 200 - 240) * ONE + isin(e) * 100, ONE * 20, ONE * (40 + 150 * i) },
 	    /* .position = { ONE * 200, 0, 0 }, */
 	    .scale = { ONE, ONE, ONE },
 	    .rotation = { 1024, 0, 1024*3, 0 },
@@ -1046,15 +1056,24 @@ int main(int argc, const char **argv)
 	}
       }
 
+      // the floor
       R_render_push_mesh((Render_Command_Mesh) {
 	.position = { 0, ONE * 200, ONE * 200 },
 	.scale = { ONE*3, ONE/4, ONE*3 },
-	.rotation = { e, 0, 0, 0 },
+	.rotation = { 0, 0, 0, 0 },
+	.mesh = &g_testcube,
+	.ground = 1
+      });
+
+      // the player
+      R_render_push_mesh((Render_Command_Mesh) {
+	.position = scene.player_position,
+	.scale = { ONE/4, ONE/4, ONE/4 },
+	.rotation = { 0, 0, 0, 0 },
 	.mesh = &g_testcube
       });
       e += (4096/120) * frame_divisor;
     }
-#endif
 
     R_render_end_frame();
     scene_draw(&scene);

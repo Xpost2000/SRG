@@ -84,6 +84,7 @@ struct Render_Command_Mesh {
   VECTOR scale;
   SVECTOR rotation;
   Render_Mesh* mesh;
+  int ground; // 1 = floor/terrain: drawn behind every other mesh, see render.c
 };
 
 struct Render_Command {
@@ -117,6 +118,13 @@ struct Render_Stats {
 // Pushing rendering commands
 //
 void R_render_push_mesh(Render_Command_Mesh mesh);
+
+//
+// Where the 3D is seen from. position is 20.12 (ONE = 1 world unit), rotation
+// is pitch / yaw / roll with 4096 = 360°. Applies to meshes presented after the
+// call. See camera.h for the game-side camera that produces these.
+//
+void R_render_set_camera(VECTOR position, SVECTOR rotation);
 
 //
 // Clearing rendering command buffer for new commands

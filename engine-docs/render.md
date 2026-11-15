@@ -39,6 +39,12 @@ render_end_frame();
 bucket, so the later draw is drawn first and ends up underneath. Use different z values if the
 order matters. It is also why a `DR_TPAGE` is sorted after the sprites that need it.
 
+**There is no depth buffer for 3D.** Each triangle is sorted by its average depth, so a large floor
+triangle gets one depth from its middle and paints over anything standing on its far half. Set
+`.ground = 1` on floor and terrain meshes: their triangles go in the last slot of the table, so they
+are always drawn first. Keep ground meshes convex, because their own faces are then not sorted
+against each other.
+
 **Sprite colour is a multiplier, and 128 means unchanged.** 255 is double brightness.
 
 **`SPRT` cannot scale or rotate.** It copies texels 1:1.

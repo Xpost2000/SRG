@@ -30,7 +30,7 @@ to regenerate it.
 
 | Path | What |
 | --- | --- |
-| `source/` | Game source. `main.c` is currently the input test scene (a D-pad-driven box plus a fake pause menu). |
+| `source/` | Game source. `main.c` is currently the test scene (a D-pad-driven box plus a fake pause menu, over a 3D floor seen through the follow camera). |
 | `source/input_pad.*` | Low-level pad driver wrapper: raw button masks, held/pressed/released edges. Game code should not call it directly. |
 | `source/input_action.*` | Action layer: named actions, one schema table per layout (UI, gameplay A, gameplay B), polling only, menu auto-repeat. |
 | `source/spu.*` | Low-level sound chip driver: uploads to sound RAM, voice key-on/off with pitch and envelope. Game code should not call it directly. |
@@ -39,6 +39,7 @@ to regenerate it.
 | `res/audio/` | Instrument samples (`.wav`, each tuned to C4) and songs (`.mml` text). Samples are converted at build time; the `.VAG` outputs live in `run-tree/audio/` and are never committed. |
 | `engine-docs/` | Design docs per engine system (`input.md`, `audio.md`, `render.md`), the audio deep dive (`audio-research.md`) and the style guide (`code-guide.md`). |
 | `source/render.*` | Double-buffered ordering-table renderer: 3D mesh commands, plus 2D rectangles, sprites and font text on their own ordering table. Flushes instead of crashing when 2D packets run out. |
+| `source/camera.*` | Fixed-angle 3D follow camera: eases after the player, turns in quarter steps, and gives screen-relative movement directions. Hands its position and rotation to `R_render_set_camera`. See `engine-docs/camera.md`. |
 | `source/vram.*` | Texture and CLUT placement in VRAM: shelf packing and TIM upload. See `engine-docs/render.md`. |
 | `source/memory_card.*`, `source/cdfs.*`, `source/memory_arena.*` | Memory card save/load, CD file reads, bump allocator. |
 | `system-docs/` | SDK manuals: PDFs plus converted Markdown in `md/`. |
