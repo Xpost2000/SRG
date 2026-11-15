@@ -47,6 +47,12 @@ enum Render_Command_Type {
   RENDER_COMMAND_COUNT,
 };
 
+typedef struct UVVECTOR UVVECTOR;
+struct UVVECTOR {
+  uint8_t u;
+  uint8_t v;
+};
+
 //
 // NOTE(jerry):
 // this is a somewhat temporary type, since I usually
@@ -77,6 +83,12 @@ struct Render_Mesh {
   // unused.
   //
   SVECTOR* colors;
+
+  //
+  // Optional, if they are not present, they do not exist.
+  // If they are present, must be the same count as vertices
+  //
+  UVVECTOR* uvs;
 };
 
 struct Render_Command_Mesh {
