@@ -84,6 +84,7 @@ struct Render_Command_Mesh {
   VECTOR scale;
   SVECTOR rotation;
   Render_Mesh* mesh;
+  int ground; // 1 = floor/terrain: drawn behind every other mesh, see render.c
 };
 
 struct Render_Command {

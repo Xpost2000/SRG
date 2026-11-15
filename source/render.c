@@ -713,6 +713,24 @@ static void R_render_command_present_mesh(Render_Command_Mesh* mesh_command)
       continue;
     }
 
+    //
+    // The PS1 has no depth buffer. Each triangle lands in the ordering table
+    // at its AVERAGE depth and the table is drawn back to front, so a big
+    // floor triangle gets one depth taken at its middle:
+    //
+    //   eye -->   [prop A]   . . floor middle . .   [prop B]
+    //             drawn after the floor              drawn BEFORE the floor,
+    //                                                then painted over by it
+    //
+    // Ground is what everything else stands on, so it can always go first:
+    // the last slot is the first one drawn. Ground meshes must be convex
+    // (back-face culling then keeps their own faces from overlapping), or
+    // their faces need sorting among themselves again.
+    //
+    if (mesh_command->ground) {
+      z = RENDER_OT_LENGTH - 1;
+    }
+
     setRGB0(triangle,   mesh->colors[i].vx, mesh->colors[i].vy, mesh->colors[i].vz);
     setRGB1(triangle, mesh->colors[i+1].vx, mesh->colors[i+1].vy, mesh->colors[i+1].vz);
     setRGB2(triangle, mesh->colors[i+2].vx, mesh->colors[i+2].vy, mesh->colors[i+2].vz);

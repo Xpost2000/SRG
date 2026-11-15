@@ -717,8 +717,15 @@ static void scene_draw(Test_Scene* scene)
     render_text(8, 220, 0, "HOLD HELP FOR BINDINGS   PAUSE FOR MENU");
   }
 
-  render_font_text(&g_font1, (Vector2) {100, 100}, "HI SRG TEAM", (Render_Color) {128, 128, 128}, 0);
-  render_font_text(&g_font2, (Vector2) {100, 116}, "Another Font,\nOh man!", (Render_Color) {128, 128, 128}, 0);
+  //
+  // Font test, stacked just above the bottom hint line so it stays out of
+  // the way of the player in the middle of the screen.
+  //
+  {
+    int y = 216 - 2 * g_font2.glyph_height - g_font1.glyph_height;
+    render_font_text(&g_font1, (Vector2) {8, y}, "HI SRG TEAM", (Render_Color) {128, 128, 128}, 0);
+    render_font_text(&g_font2, (Vector2) {8, y + g_font1.glyph_height}, "Another Font,\nOh man!", (Render_Color) {128, 128, 128}, 0);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -965,8 +972,13 @@ int main(int argc, const char **argv)
 
       for (i = 0; i < 3; ++i) {
 	for (j = 0; j < 3 * intensity; ++j) {
+	  //
+	  // The props hang 151 units below their origin once rotated (M1.BIN's
+	  // local z runs -151..59, and this rotation turns -z into world down),
+	  // so y = 20 stands them on the slab top at y = 175.
+	  //
 	  R_render_push_mesh((Render_Command_Mesh) {
-	    .position = { (j * 200 - 240) * ONE + isin(e) * 100, ONE * 50, ONE * (40 + 150 * i) },
+	    .position = { (j * 200 - 240) * ONE + isin(e) * 100, ONE * 20, ONE * (40 + 150 * i) },
 	    /* .position = { ONE * 200, 0, 0 }, */
 	    .scale = { ONE, ONE, ONE },
 	    .rotation = { 1024, 0, 1024*3, 0 },
@@ -980,7 +992,8 @@ int main(int argc, const char **argv)
 	.position = { 0, ONE * 200, ONE * 200 },
 	.scale = { ONE*3, ONE/4, ONE*3 },
 	.rotation = { 0, 0, 0, 0 },
-	.mesh = &g_testcube
+	.mesh = &g_testcube,
+	.ground = 1
       });
 
       // the player
