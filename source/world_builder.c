@@ -91,7 +91,7 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
   world_for_header.world_w        = builder->width;
   world_for_header.world_h        = builder->height;
 
-  serializer_serialize_bytes(serializer, &world_for_header, sizeof(world_for_header));
+  serializer_serialize_bytes(serializer, (uint8_t*) &world_for_header, sizeof(world_for_header));
 
   //
   // serialize can technically read/write back, so going to use this to readback values
@@ -103,4 +103,26 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
   builder->entities_byte_size  = world_for_header.total_size - world_for_header.size;
 
   serializer_serialize_bytes(serializer, builder->tile_storage, builder->width * builder->height * sizeof(uint8_t));
+
+  for (i = 0 ; i < builder->entity_count; ++i) {
+    World_Entity  entity_header;
+    World_Entity* e;
+
+    serializer_serialize_bytes(serializer, (uint8_t*) &entity_header, sizeof(entity_header));
+
+    //
+    // I've never figured out a good solution to not make this abstraction leak a little
+    // because you need to have memory allocated to read something, but writing does
+    // not require allocation. Oh well.
+    //
+    if (serializer->mode == SERIALIZER_MODE_READ) {
+      builder->entities[i] =
+        (World_Entity*) memory_arena_push_unaligned(builder->arena, entity_header.size);
+      memcpy(builder->entities[i], &entity_header, sizeof(entity_header));
+    }
+
+    e = builder->entities[i];
+
+    serializer_serialize_bytes(serializer, (uint8_t*) e, e->size - sizeof(entity_header));
+  }
 }
