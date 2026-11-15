@@ -787,10 +787,6 @@ static void scene_draw(Test_Scene* scene)
     render_text(8, 220, 0, "HOLD HELP FOR BINDINGS   PAUSE FOR MENU");
   }
 
-  //
-  // Font test, stacked just above the bottom hint line so it stays out of
-  // the way of the player in the middle of the screen.
-  //
   {
     int y = 216 - 2 * g_font2.glyph_height - g_font1.glyph_height;
     render_font_text(&g_font1, (Vector2) {8, y}, "HI SRG TEAM", (Render_Color) {128, 128, 128}, 0);

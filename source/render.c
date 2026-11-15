@@ -97,14 +97,7 @@ MATRIX light_mtx = {
   ONE	  , ONE	  , 0
 };
 
-//
-// The VIEW matrix: world -> camera. The GTE has no notion of a camera, it
-// holds exactly one rotation matrix and one translation vector and pushes
-// every vertex through them (RTPT). So "having a camera" means folding this
-// matrix into each mesh's own matrix before loading it, see
-// R_render_command_present_mesh.
-//
-static MATRIX g_view;
+static MATRIX g_view = { {{ONE, 0, 0}, {0, ONE, 0}, {0, 0, ONE}}, {0, 0, 0} };
 
 //
 // Empties both ordering tables and joins them into one chain, so the GPU can be
@@ -228,11 +221,6 @@ void render_initialize(void)
   gte_SetGeomOffset(RENDER_SCREEN_WIDTH/2, RENDER_SCREEN_HEIGHT/2);
   gte_SetGeomScreen(RENDER_SCREEN_WIDTH/2);
   gte_SetBackColor(32, 32, 32);
-
-  //
-  // Straight down +Z from 550 units back, for scenes that never set a camera.
-  //
-  R_render_set_camera((VECTOR) {0, 0, -ONE * 550}, (SVECTOR) {0, 0, 0});
 
   for (int i = 0; i < TRI_RENDER_PACKET_BUFFER_SIZE; ++i) {
     POLY_G3* g = &g_buffers[0].tri_packets[i * sizeof(POLY_G3)];
@@ -539,16 +527,6 @@ Render_Stats render_get_stats(void)
 // NOTE(jerry): new rendering code
 //
 
-//
-// The inverse of placing the camera in the world. To move the world into
-// camera space, first slide it by -position (camera at the origin), then turn
-// it by the camera's rotation. In GTE terms that is a matrix whose rotation is
-// R and whose translation is R * -position, which ApplyMatrixLV computes. Same
-// as the SDK's fpscam example.
-//
-// RotMatrix builds Rx * Ry * Rz, so yaw is applied before pitch: the camera
-// turns on the spot first and then tilts, which is what keeps the horizon level.
-//
 void R_render_set_camera(VECTOR position, SVECTOR rotation)
 {
   VECTOR translation;

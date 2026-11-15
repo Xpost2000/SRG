@@ -79,8 +79,7 @@ GTE matrix = VIEW x MODEL = CompMatrixLV(&g_view, &model, &out)
   translation = view.rot * model.trans + view.trans
 ```
 
-A scene that never sets a camera gets the default from `render_initialize`: 550 units back from the
-origin, looking straight ahead.
+A scene that never sets a camera gets the identity view: at the origin, looking down +Z.
 
 The rotation never changes except while a quarter turn is easing, so building the view costs one
 `RotMatrix` and a few `isin`/`icos` products a frame, with no normalising or cross products. The
