@@ -1,9 +1,8 @@
 # 3D Camera
 
-`source/camera.*` is a fixed-angle follow camera, the kind used in Vagrant Story and Final Fantasy
-Tactics. It always looks down at the same angle, eases after the player, and turns only in quarter
-steps. `R_render_set_camera` in `source/render.*` turns its position and rotation into the view
-matrix the GTE uses.
+`source/camera.*` is a fixed-angle follow camera. It always looks down at the same angle, eases after
+the player, and turns only in quarter steps. `R_render_set_camera` in `source/render.*` turns its
+position and rotation into the view matrix the GTE uses.
 
 ## Using it
 
@@ -28,8 +27,7 @@ The work is in `scene_update_gameplay` in `source/main.c` and the action tables:
    `INPUT_ACTION_CAMERA_RIGHT` to `Input_Action` in `input_action.h`. Bind them in both gameplay
    schemas in `input_action.c`, and give them labels in `g_action_labels` in `main.c` so the help
    overlay shows them. One suggestion is Square / Circle for the turns in Type A and L1 / R1 in
-   Type B (as Final Fantasy Tactics does), but L1 / R1 and L2 / R2 already change the prop count,
-   so move those first. `MOVE_*` is already bound to the D-pad.
+   Type B, but L1 / R1 and L2 / R2 already change the prop count, so move those first. `MOVE_*` is already bound to the D-pad.
 2. **Turn the camera** on a tap:
 
    ```c
@@ -66,32 +64,26 @@ Things to watch for:
 - If you teleport the player (a respawn or a reset button), call `camera_initialize` instead of
   letting `camera_update` ease, or the camera visibly flies across the level.
 
-## How PS1 games did cameras
+## How the camera reaches the GTE
 
 The PS1 has no hardware camera. The GTE holds one rotation matrix and one translation vector and
-pushes every vertex through them. A camera is a **view matrix** (world to camera) that gets folded
-into each mesh's model matrix (mesh to world) before that mesh is loaded:
+pushes every vertex through them. Our camera is a **view matrix** (world to camera), `g_view` in
+`render.c`. `R_render_set_camera` rebuilds it once a frame, and `R_render_command_present_mesh` folds
+it into each mesh's model matrix (mesh to world) before loading that mesh:
 
 ```
-GTE matrix = VIEW x MODEL = CompMatrixLV(&view, &model, &out)
+GTE matrix = VIEW x MODEL = CompMatrixLV(&g_view, &model, &out)
   rotation    = view.rot * model.rot
   translation = view.rot * model.trans + view.trans
 ```
 
-Commercial games differ only in how they choose the view:
+A scene that never sets a camera gets the default from `render_initialize`: 550 units back from the
+origin, looking straight ahead.
 
-| Style | Games | How the view is built |
-|---|---|---|
-| Free first person | Doom, King's Field, Medal of Honor | position + yaw/pitch through `RotMatrix`, translation = R * -position |
-| Look-at follow | Spyro, MediEvil, Tomb Raider | eye and target into a look-at matrix (Sony's libgs `GsSetRefView2`, which PSn00bSDK does not have) |
-| **Fixed-angle follow (ours)** | Vagrant Story, FFT, Tactics Ogre, Diablo | constant rotation, eye = target - forward * distance, eased after the player, turned in steps |
-| Fixed / rail | Resident Evil, Silent Hill, Crash | an authored camera per zone, often over pre-rendered backgrounds |
-
-The fixed-angle follow is the cheapest of these. Its rotation is constant except while a turn is
-easing, so there is no normalising and no cross product as there would be in a look-at matrix.
-It is one `RotMatrix` and a few `isin`/`icos` products. The SDK's own example,
-`toolchain-win64/share/psn00bsdk/examples/graphics/fpscam/`, builds its view the same way, and it
-also has a `LookAt` if we ever want an orbit camera.
+The rotation never changes except while a quarter turn is easing, so building the view costs one
+`RotMatrix` and a few `isin`/`icos` products a frame, with no normalising or cross products. The
+SDK example `toolchain-win64/share/psn00bsdk/examples/graphics/fpscam/` builds its view the same
+way, and it also has a `LookAt` if we ever want an orbit camera.
 
 ## The math
 
@@ -136,7 +128,7 @@ All the knobs are `#define`s at the top of `camera.h`:
 
 The field of view is set in `render_initialize` by `gte_SetGeomScreen(RENDER_SCREEN_WIDTH / 2)`,
 which gives 90° across. A larger value narrows the field of view and flattens the perspective toward
-a true isometric look (as FFT does), but the camera then has to sit further back. Depth past roughly
+a true isometric look, but the camera then has to sit further back. Depth past roughly
 2000 units falls off the end of the 3D ordering table, so a far camera also needs
 `RENDER_OT_LENGTH` or the GTE's Z scale (`ZSF3`) adjusted.
 

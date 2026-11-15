@@ -6,14 +6,13 @@
 #include <psxgte.h>
 
 //
-// Fixed-angle follow camera, the Vagrant Story / Final Fantasy Tactics kind:
-// it always looks down at the same angle, eases after whatever it follows, and
-// only turns in quarter steps. See engine-docs/camera.md.
+// Fixed-angle follow camera: it always looks down at the same angle, eases
+// after whatever it follows, and only turns in quarter steps. See
+// engine-docs/camera.md, which also covers wiring it to player controls.
 //
-// It reads no input and draws nothing. Game code polls actions, moves the
-// player, and hands the result to the renderer:
+// It reads no input and draws nothing. Game code moves the player, then
+// hands the result to the renderer:
 //
-//   if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_LEFT)) camera_turn(&camera, -1);
 //   camera_update(&camera, player_position, frame_divisor);
 //   R_render_set_camera(camera.position, camera.rotation);
 //
