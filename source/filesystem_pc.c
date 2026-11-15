@@ -52,7 +52,7 @@ File_Handle filesystem_open(const char* filepath)
   for (i = 0; i < MAX_OPENED_FILES; ++i) {
     if (!g_open_files[i].f) {
       Opened_File_State* state = &g_open_files[i];
-      FILE*              f     = fopen(filepath, "rb+");
+      FILE*              f     = fopen(filepath, "rwb+");
 
       if (!f) {
         _debugprintf("[FILESYSTEM] Failed to open: %s", filepath);

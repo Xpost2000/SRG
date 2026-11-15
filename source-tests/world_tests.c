@@ -36,16 +36,9 @@ uint8_t testworld1[8*8] = {
   1, 1, 1, 1, 1, 1, 1, 1,
 };
 
-//
-// Generates a raw memory buffer which should
-// qualify for a world.
-//
-// Basically the same as if you had loaded from
-// a file. Just skipping the file part.
-//
-uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t world_w, int32_t world_h)
+World_Builder* make_test_world(uint8_t* world, int32_t world_w, int32_t world_h)
 {
-  uint8_t* result;
+  World_Builder* world_builder = world_builder_create(arena);
 
   world_builder_set_world_tile_data(world_builder, world_w, world_h, world);
 
@@ -57,6 +50,15 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_stage_end_region(world_builder, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
+
+  return world_builder;
+}
+
+uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t world_w, int32_t world_h)
+{
+  uint8_t* result;
+
+  world_builder = make_test_world(world, world_w, world_h);
   *out_size = world_builder_get_memory_required(world_builder);
 
   {
@@ -157,7 +159,6 @@ void test_entity_iteration(World* world, Serializer* serializer)
 void setup_test_preamble(void)
 {
   arena = memory_arena_create("test-arena", g_memory_buffer, sizeof(g_memory_buffer));
-  world_builder = world_builder_create(arena);
 }
 
 void test_world_serialization_and_iteration_usage_scenario(void)
@@ -192,10 +193,54 @@ void test_world_serialization_and_iteration_usage_scenario(void)
   test_entity_iteration(world, &serializer);
 }
 
+void test_world_serialization_from_a_file_scenario(void)
+{
+  Serializer serializer;
+  World*     world;
+
+  setup_test_preamble();
+  
+  _debugprintf("Writing test world into file.");
+  world_builder = make_test_world(testworld1, 8, 8);
+  serializer   = serializer_from_file("./world_tests_level.slvl");
+  serializer_set_mode(&serializer, SERIALIZER_MODE_WRITE);
+  world_builder_serialize_world(world_builder, &serializer);
+  filesystem_close(serializer.file_handle);
+  _debugprintf("Test world outputted as \"./world_tests_level.slvl\"");
+
+  _debugprintf("Reopneing test world file.");
+  serializer = serializer_from_file("./testworld.slvl");
+  serializer_set_mode(&serializer, SERIALIZER_MODE_READ);
+  world = world_read_from_serializer(arena, &serializer);
+  filesystem_close(serializer.file_handle);
+
+  assert((world->version == WORLD_CURRENT_VERSION) && "world version header is not correct?");
+  assert((world->world_w == 8) && "simple world width is not correct");
+  assert((world->world_h == 8) && "simple world height is not correct");
+
+  //
+  // for the simple world. I know I have this many entities so.
+  //
+  _debugprintf("Test that the entity count is serialized/synced correctly");
+  assert(world->entities_count == world_builder->entity_count && "simple world entity count is wrong");
+
+  _debugprintf("Test that the world tiles serialized correctly");
+  assert_world_tiles_properties_are_correct(world);
+
+  _debugprintf("Test that the variable record sized entities can be iterated correctly");
+  test_entity_iteration(world, &serializer);
+
+  /* remove("./testworld.slvl"); */
+}
+
 int main(void)
 {
 
+  _debugprintf("test_world_serialization_and_iteration_usage_scenario");
   test_world_serialization_and_iteration_usage_scenario();
+
+  _debugprintf("test_world_serialization_from_a_file_scenario");
+  test_world_serialization_from_a_file_scenario();
 
   return 0;
 }
