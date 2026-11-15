@@ -41,6 +41,7 @@ void world_entity_iterator_advance(World_Entity_Iterator* iterator)
   iterator->entity = (World_Entity*) iterator->_entity_buffer;
 
   if (!(iterator->read_count >= (int32_t)iterator->world->entities_count)) {
+    _debugprintf("Serialize entity header (%d)", sizeof(World_Entity));
     serializer_read_into_bytes(iterator->serializer,
                                iterator->_entity_buffer,
                                sizeof(World_Entity));
@@ -49,6 +50,7 @@ void world_entity_iterator_advance(World_Entity_Iterator* iterator)
 
     assert(remaining_read_size >= 0 && "[WORLD_ENTITY_ITERATOR] it should not be possible to have a remaining_read_size less than zero. Improperly formed entity?");
 
+    _debugprintf("Serialize entity payload (%d)", remaining_read_size);
     serializer_read_into_bytes(iterator->serializer,
                                iterator->_entity_buffer + sizeof(World_Entity),
                                remaining_read_size);

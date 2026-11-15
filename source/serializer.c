@@ -164,7 +164,7 @@ void serializer_read_into_bytes(Serializer* serializer, uint8_t* dest, uint32_t 
   case SERIALIZER_TYPE_FILE_HANDLE: {
     int read_bytes;
     read_bytes = filesystem_read(serializer->file_handle, dest, bytes);
-    _debugprintf("[SERIALIZER] read_bytes(%d) vs. byte(%d)", read_bytes, bytes);
+    _debugprintf("[SERIALIZER] read_bytes(%d) vs. bytes(%d)", read_bytes, bytes);
     assert(read_bytes == bytes && "[SERIALIZER] file serializer did not read the same amount of bytes as requested.");
   } break;
   default: {

@@ -20,6 +20,7 @@ add_executable(world_tests
                 world_tests.c
                 ../source/memory_arena.c
                 ../source/world.c
+                ../source/world_builder.c
                 ../source/serializer.c
                 ../source/filesystem.c)
 

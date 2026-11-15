@@ -49,7 +49,8 @@ psn00bsdk_add_executable(game GPREL
 					source/font.c
 					source/serializer.c
 					source/spu.c
-                                        source/world.c
+					source/world.c
+					source/world_builder.c
 					source/audio.c
 					source/mml.c
 					source/ps1_mem_limit.c

@@ -5,3 +5,4 @@
 @rem configuration for me though which is stupid :/
 
 gcc fontbuild.c -o fontbuild
+gcc worldcompile.c ../source/world_builder.c ../source/memory_arena.c ../source/serializer.c ../source/filesystem.c -o worldcompile -I ../source
