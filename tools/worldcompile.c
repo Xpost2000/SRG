@@ -150,6 +150,13 @@ void read_tiles(FILE* f)
   world_width = max_x;
   world_height = lines;
   _debugprintf("World dimensions: %d x %d", world_width, world_height);
+
+  for (i = 0; i < world_height; ++i) {
+    for (s = 0; s < world_width; ++s) {
+      printf("%c", tile_data[i * world_width + s]);
+    }
+    printf("\n");
+  }
 }
 
 void read_entities(FILE* f)
