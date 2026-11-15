@@ -197,22 +197,22 @@ void test_world_serialization_from_a_file_scenario(void)
 {
   Serializer serializer;
   World*     world;
+  const char* test_world_file = "./world_tests_level.slvl";
 
   setup_test_preamble();
   
   _debugprintf("Writing test world into file.");
   world_builder = make_test_world(testworld1, 8, 8);
-  serializer   = serializer_from_file("./world_tests_level.slvl");
+  serializer   = serializer_from_file(test_world_file);
   serializer_set_mode(&serializer, SERIALIZER_MODE_WRITE);
   world_builder_serialize_world(world_builder, &serializer);
   filesystem_close(serializer.file_handle);
-  _debugprintf("Test world outputted as \"./world_tests_level.slvl\"");
+  _debugprintf("Test world outputted as \"%s\"", test_world_file);
 
   _debugprintf("Reopening test world file.");
-  serializer = serializer_from_file("./testworld.slvl");
+  serializer = serializer_from_file(test_world_file);
   serializer_set_mode(&serializer, SERIALIZER_MODE_READ);
   world = world_read_from_serializer(arena, &serializer);
-  filesystem_close(serializer.file_handle);
 
   assert((world->version == WORLD_CURRENT_VERSION) && "world version header is not correct?");
   assert((world->world_w == 8) && "simple world width is not correct");
@@ -229,8 +229,9 @@ void test_world_serialization_from_a_file_scenario(void)
 
   _debugprintf("Test that the variable record sized entities can be iterated correctly");
   test_entity_iteration(world, &serializer);
+  filesystem_close(serializer.file_handle);
 
-  /* remove("./testworld.slvl"); */
+  remove(test_world_file);
 }
 
 int main(void)

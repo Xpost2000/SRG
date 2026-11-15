@@ -45,6 +45,19 @@ static size_t clib_get_file_size(FILE* f)
   return result;
 }
 
+static int clib_file_exists(const char* filepath)
+{
+  FILE* f;
+  int result;
+  f = fopen(filepath, "rb");
+  result = 0;
+  if (f) {
+    result = 1;
+    fclose(f);
+  }
+  return result;
+}
+
 File_Handle filesystem_open(const char* filepath)
 {
   int i;
@@ -56,8 +69,24 @@ File_Handle filesystem_open(const char* filepath)
       // NOTE: the C standard library allows doing this
       // any '+' mode is technically readable and writable.
       //
-      FILE*              f     = fopen(filepath, "wb+");
+      FILE*              f;
 
+      //
+      // stupid little hack to create the file
+      // if it doesn't already exist so that it can
+      // be written from scratch, but without truncating
+      // the original file
+      //
+      if (!clib_file_exists(filepath)) {
+        f = fopen(filepath, "wb+");
+        if (!f) {
+          _debugprintf("[FILESYSTEM] possibly lacking permissions to create: %s", filepath);
+          return 0;
+        }
+        fclose(f);
+      }
+
+      f = fopen(filepath, "rb+");
       if (!f) {
         _debugprintf("[FILESYSTEM] Failed to open: %s", filepath);
         return 0;
