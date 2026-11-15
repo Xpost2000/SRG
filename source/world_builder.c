@@ -138,7 +138,7 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
     e = builder->entities[i];
     _debugprintf("e ptr: %p", e);
 
-    serializer_serialize_bytes(serializer, (uint8_t*) e, e->size - sizeof(entity_header));
+    serializer_serialize_bytes(serializer, (uint8_t*)(e) + sizeof(entity_header), e->size - sizeof(entity_header));
   }
 }
 
