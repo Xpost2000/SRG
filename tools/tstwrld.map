@@ -19,7 +19,7 @@ tiles_begin
 tiles_end
 entities_begin
 
-player_spawn 1 1
+player_spawn 1 1 0
 // object_prop ... no assets yet so.. can't really do much here
 
 //

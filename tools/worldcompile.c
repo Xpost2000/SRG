@@ -143,11 +143,79 @@ void read_entities(FILE* f)
     line += length;
 
     if (strcmp(tok, "player_spawn") == 0) {
-      
+      int32_t x;
+      int32_t y;
+      int16_t look_angle;
+
+      tok = nexttoken(line, &length);
+      line += length;
+      x = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      y = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      look_angle = atoi(tok);
+
+      _debugprintf("player_spawn: %d, %d, %d", x, y, look_angle);
     } else if (strcmp(tok, "end_stage_region") == 0) {
+      int32_t x;
+      int32_t y;
+      int32_t w;
+      int32_t h;
+      int32_t next_level_id;
+
+      tok = nexttoken(line, &length);
+      line += length;
+      x = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      y = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      w  = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      h  = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      next_level_id = atoi(tok);
       
+      _debugprintf("end_stage_region: %d, %d, %d, %d", x, y, w, h, next_level_id);
     } else if (strcmp(tok, "object_prop") == 0) {
+      int32_t  x;
+      int32_t  y;
+      int32_t  asset_id;
+      uint32_t flags;
+      int16_t  look_angle;
+
+      tok = nexttoken(line, &length);
+      line += length;
+      x = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      y = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      w  = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      h  = atoi(tok);
+
+      tok = nexttoken(line, &length);
+      line += length;
+      next_level_id = atoi(tok);
       
+      _debugprintf("object_prop: %d, %d, %d, %d", x, y, w, h, next_level_id);
     }
   }
 }
