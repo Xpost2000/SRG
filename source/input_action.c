@@ -6,11 +6,10 @@
 //  SCHEMA TABLES: this is the "config file". Designated initialisers mean
 //  anything not listed is 0 = unbound in that schema.
 //
-//  "Type A" is the default: the camera turns on Square / Circle, which sit
-//  either side of the face buttons like a little left / right pair. "Type B"
-//  is the Final Fantasy Tactics layout, camera on the shoulders, which frees
-//  the face buttons. D-pad, Start and Select stay put in both so a player can
-//  never lose the menu.
+//  "Type A" is the default. "Type B" moves the test scene's prop count from
+//  R1 / L1 to R2 / L2, which is enough to show a saved preset taking effect.
+//  D-pad, Start and Select stay put in both so a player can never lose the
+//  menu.
 // ============================================================================
 
 static const uint16_t g_schemas[INPUT_SCHEMA_COUNT][INPUT_ACTION_COUNT] = {
@@ -28,12 +27,8 @@ static const uint16_t g_schemas[INPUT_SCHEMA_COUNT][INPUT_ACTION_COUNT] = {
     [INPUT_ACTION_MOVE_DOWN]      = PAD_DOWN,
     [INPUT_ACTION_MOVE_LEFT]      = PAD_LEFT,
     [INPUT_ACTION_MOVE_RIGHT]     = PAD_RIGHT,
-    [INPUT_ACTION_RUN]            = PAD_R2,
-    [INPUT_ACTION_CAMERA_LEFT]    = PAD_SQUARE,
-    [INPUT_ACTION_CAMERA_RIGHT]   = PAD_CIRCLE,
     [INPUT_ACTION_MESHES_MORE]    = PAD_R1,
     [INPUT_ACTION_MESHES_FEWER]   = PAD_L1,
-    [INPUT_ACTION_RESET_POSITION] = PAD_L3,
     [INPUT_ACTION_HELP]           = PAD_SELECT,
     [INPUT_ACTION_PAUSE]          = PAD_START,
   },
@@ -42,12 +37,8 @@ static const uint16_t g_schemas[INPUT_SCHEMA_COUNT][INPUT_ACTION_COUNT] = {
     [INPUT_ACTION_MOVE_DOWN]      = PAD_DOWN,
     [INPUT_ACTION_MOVE_LEFT]      = PAD_LEFT,
     [INPUT_ACTION_MOVE_RIGHT]     = PAD_RIGHT,
-    [INPUT_ACTION_RUN]            = PAD_CROSS,
-    [INPUT_ACTION_CAMERA_LEFT]    = PAD_L1,
-    [INPUT_ACTION_CAMERA_RIGHT]   = PAD_R1,
     [INPUT_ACTION_MESHES_MORE]    = PAD_R2,
     [INPUT_ACTION_MESHES_FEWER]   = PAD_L2,
-    [INPUT_ACTION_RESET_POSITION] = PAD_R3,
     [INPUT_ACTION_HELP]           = PAD_SELECT,
     [INPUT_ACTION_PAUSE]          = PAD_START,
   },

@@ -10,16 +10,61 @@ matrix the GTE uses.
 ```c
 camera_initialize(&camera, player_position);           // snaps, no ease
 
-// every frame, after polling input
-if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_LEFT)) camera_turn(&camera, -1);
-direction = camera_ground_direction(&camera, forward, right);   // D-pad -> world, screen-relative
+// every frame
 camera_update(&camera, player_position, frame_divisor);
-
 R_render_set_camera(camera.position, camera.rotation);  // before R_render_end_frame
 ```
 
 The camera reads no input and draws nothing. Positions are 20.12 fixed point (`ONE` = 1 world
 unit), and angles are 4096 = 360°.
+
+## Writing the player controls
+
+The test scene has no player controls yet; the cube stands still and the camera holds on it. The
+camera already has the two calls the controls need, `camera_turn` and `camera_ground_direction`.
+The work is in `scene_update_gameplay` in `source/main.c` and the action tables:
+
+1. **Add the actions.** Append `INPUT_ACTION_RUN`, `INPUT_ACTION_CAMERA_LEFT` and
+   `INPUT_ACTION_CAMERA_RIGHT` to `Input_Action` in `input_action.h`. Bind them in both gameplay
+   schemas in `input_action.c`, and give them labels in `g_action_labels` in `main.c` so the help
+   overlay shows them. One suggestion is Square / Circle for the turns in Type A and L1 / R1 in
+   Type B (as Final Fantasy Tactics does), but L1 / R1 and L2 / R2 already change the prop count,
+   so move those first. `MOVE_*` is already bound to the D-pad.
+2. **Turn the camera** on a tap:
+
+   ```c
+   if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_LEFT))  camera_turn(&scene->camera, -1);
+   if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_RIGHT)) camera_turn(&scene->camera, +1);
+   ```
+
+   `camera_turn` only moves the goal. `camera_update` eases the view there over the next few frames.
+3. **Move the player relative to the screen**, so that up on the D-pad walks up the screen in every
+   view:
+
+   ```c
+   int    forward = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_DOWN, INPUT_ACTION_MOVE_UP);
+   int    right   = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT);
+   int    speed   = input_action_held(P1_PAD, INPUT_ACTION_RUN) ? 10 : 4;  // world units per frame
+   VECTOR step    = camera_ground_direction(&scene->camera, forward, right);
+
+   scene->player_position.vx += step.vx * speed * frame_divisor;
+   scene->player_position.vz += step.vz * speed * frame_divisor;
+   ```
+
+   The direction is 4.12 and the position is 20.12, so multiplying by whole world units gives a
+   20.12 step with no shifting. Leave `vy` alone until there is gravity.
+4. **Keep `camera_update` last** in the function, after the player has moved, so the camera eases
+   toward where the player is this frame.
+
+Things to watch for:
+
+- `frame_divisor` currently always reads 1, because it only measures the time from just before
+  `render_end_frame` to the start of the next frame. Movement will slow down whenever the game drops
+  to 30 fps until that is fixed.
+- Taps can be dropped at 30 fps, because `input_pad_frame()` snapshots the pad buffer once per frame
+  rather than once per vblank. If camera turns sometimes do not fire, that is the cause.
+- If you teleport the player (a respawn or a reset button), call `camera_initialize` instead of
+  letting `camera_update` ease, or the camera visibly flies across the level.
 
 ## How PS1 games did cameras
 

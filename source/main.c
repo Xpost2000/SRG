@@ -1,11 +1,12 @@
 //
 // TEST SCENE
 //
-// A cube you walk around a 3D floor with the D-pad, watched by the follow
-// camera (camera.h), plus a pause menu. It exists to exercise the engine end
-// to end so anyone can plug in a pad (real or emulated) and see:
+// A cube standing on a 3D floor among props, watched by the follow camera
+// (camera.h), plus a pause menu. The cube has no controls yet. It exists to
+// exercise the engine end to end so anyone can plug in a pad (real or
+// emulated) and see:
 //
-//   - gameplay schema:  screen-relative movement, quarter turns of the camera
+//   - gameplay schema:  more / fewer props, the 3D stress knob
 //   - UI schema:        menu navigation with auto-repeat, confirm, cancel
 //   - presets:          switching Type A <-> Type B live, saving the choice
 //                       to the memory card, and reloading it
@@ -189,9 +190,6 @@ struct Game_Settings {
 //  Scene state
 // ----------------------------------------------------------------------------
 
-#define PLAYER_SPEED     (4)  // world units per frame
-#define PLAYER_SPEED_RUN (10)
-
 //
 // The middle of the floor slab, standing on it: the slab's top is at
 // y = 200 - 25, and the player cube is 50 tall (Y points down).
@@ -271,12 +269,8 @@ static const char* const g_action_labels[INPUT_ACTION_COUNT] = {
   [INPUT_ACTION_MOVE_DOWN]      = "DOWN",
   [INPUT_ACTION_MOVE_LEFT]      = "LEFT",
   [INPUT_ACTION_MOVE_RIGHT]     = "RIGHT",
-  [INPUT_ACTION_RUN]            = "RUN",
-  [INPUT_ACTION_CAMERA_LEFT]    = "CAM L",
-  [INPUT_ACTION_CAMERA_RIGHT]   = "CAM R",
   [INPUT_ACTION_MESHES_MORE]    = "MESHES+",
   [INPUT_ACTION_MESHES_FEWER]   = "MESHES-",
-  [INPUT_ACTION_RESET_POSITION] = "RESET",
   [INPUT_ACTION_HELP]           = "HELP",
   [INPUT_ACTION_PAUSE]          = "PAUSE",
 };
@@ -398,8 +392,8 @@ static void music_toggle(Test_Scene* scene)
 
 //
 // Opening or closing the menu is nothing more than pointing both pads at a
-// different schema. From the next poll the same physical button means
-// UI_CANCEL instead of CAMERA_RIGHT, and CAMERA_RIGHT can no longer fire at all.
+// different schema. From the next poll Circle means UI_CANCEL, and no
+// gameplay action can fire at all.
 //
 static void scene_enter_gameplay(Test_Scene* scene)
 {
@@ -416,16 +410,6 @@ static void scene_enter_menu(Test_Scene* scene)
   for (int pad_index = 0; pad_index < 2; ++pad_index) {
     input_action_set_schema(pad_index, INPUT_SCHEMA_UI);
   }
-}
-
-//
-// The camera snaps rather than eases here, otherwise it would visibly fly
-// across the floor after a teleport.
-//
-static void scene_reset_player(Test_Scene* scene)
-{
-  scene->player_position = PLAYER_START;
-  camera_initialize(&scene->camera, scene->player_position);
 }
 
 //
@@ -446,45 +430,23 @@ static void settings_cycle_schema(Test_Scene* scene, int pad_index, int directio
 
 static void scene_update_gameplay(Test_Scene* scene)
 {
-  int    forward = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_DOWN, INPUT_ACTION_MOVE_UP);
-  int    right   = input_action_axis(P1_PAD, INPUT_ACTION_MOVE_LEFT, INPUT_ACTION_MOVE_RIGHT);
-  int    speed   = input_action_held(P1_PAD, INPUT_ACTION_RUN) ? PLAYER_SPEED_RUN : PLAYER_SPEED;
-  VECTOR direction;
-
   //
-  // Movement is relative to the SCREEN, not the world: up on the D-pad walks
-  // up the screen whichever way the camera faces. The direction is 4.12 and
-  // the position 20.12, so direction * whole units lands in the right format.
-  //
-  direction = camera_ground_direction(&scene->camera, forward, right);
-  scene->player_position.vx += direction.vx * speed * frame_divisor;
-  scene->player_position.vz += direction.vz * speed * frame_divisor;
-
+  // No player controls yet: the player stands still and the camera holds on
+  // it. engine-docs/camera.md has how to write them.
   //
   // Tapped things. pressed() is true for exactly one frame per press.
   //
-  // The camera turns make a noise so the voice pool can be heard working:
-  // mash them and the blips overlap instead of cutting each other off. The
-  // other direction plays the same instrument an octave down to show pitch
-  // is free.
+  // The prop taps make a noise so the voice pool can be heard working: mash
+  // them and the blips overlap instead of cutting each other off. Fewer plays
+  // the same instrument an octave down to show pitch is free.
   //
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_LEFT)) {
-    camera_turn(&scene->camera, -1);
-    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT - 12, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
-  }
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_CAMERA_RIGHT)) {
-    camera_turn(&scene->camera, +1);
-    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
-  }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_MESHES_MORE)) {
     intensity++;
+    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_MESHES_FEWER)) {
     intensity = max(intensity - 1, 0);
-  }
-  if (input_action_pressed(P1_PAD, INPUT_ACTION_RESET_POSITION)) {
-    scene_reset_player(scene);
-    audio_sfx_play(AUDIO_INSTRUMENT_SNARE, AUDIO_NOTE_ROOT, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
+    audio_sfx_play(AUDIO_INSTRUMENT_BLIP, AUDIO_NOTE_ROOT - 12, AUDIO_VOLUME_MAX, AUDIO_VOLUME_MAX);
   }
   if (input_action_pressed(P1_PAD, INPUT_ACTION_PAUSE)) {
     scene_enter_menu(scene);
@@ -860,7 +822,8 @@ int main(int argc, const char **argv)
   //
   g_song_theme = audio_song_load(MUSIC_TEST_PATH);
 
-  scene_reset_player(&scene);
+  scene.player_position = PLAYER_START;
+  camera_initialize(&scene.camera, scene.player_position);
   scene.logo_position = (Vector2) {16, 16};
   scene.logo_velocity = (Vector2) {LOGO_SPEED, LOGO_SPEED};
   settings_load(&scene);

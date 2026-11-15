@@ -44,19 +44,14 @@ enum Input_Action {
   INPUT_ACTION_UI_CANCEL,
   INPUT_ACTION_UI_MENU,
 
-  // Gameplay. These are the test scene's verbs: a cube walking on the 3D
-  // floor under the follow camera. A real game will replace them with its
-  // own (JUMP, ATTACK, ...).
-  INPUT_ACTION_MOVE_UP,        // all four moves are relative to the screen
-  INPUT_ACTION_MOVE_DOWN,
-  INPUT_ACTION_MOVE_LEFT,
+  // Gameplay. These are the test scene's verbs. A real game will replace
+  // them with its own (JUMP, ATTACK, ...).
+  INPUT_ACTION_MOVE_UP,        // bound, but nothing reads them yet: player
+  INPUT_ACTION_MOVE_DOWN,      // controls are still to be written, see
+  INPUT_ACTION_MOVE_LEFT,      // engine-docs/camera.md
   INPUT_ACTION_MOVE_RIGHT,
-  INPUT_ACTION_RUN,            // hold
-  INPUT_ACTION_CAMERA_LEFT,    // tap: turn the view a quarter turn
-  INPUT_ACTION_CAMERA_RIGHT,   // tap
   INPUT_ACTION_MESHES_MORE,    // tap: 3D stress test, more props
   INPUT_ACTION_MESHES_FEWER,   // tap
-  INPUT_ACTION_RESET_POSITION, // tap: back to the middle of the floor
   INPUT_ACTION_HELP,           // hold: show the live bindings on screen
   INPUT_ACTION_PAUSE,          // tap: open the menu
 

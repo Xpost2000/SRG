@@ -30,7 +30,7 @@ to regenerate it.
 
 | Path | What |
 | --- | --- |
-| `source/` | Game source. `main.c` is currently the test scene (a cube walking a 3D floor under the follow camera, plus a fake pause menu). |
+| `source/` | Game source. `main.c` is currently the test scene (a cube on a 3D floor under the follow camera, no player controls yet, plus a fake pause menu). |
 | `source/input_pad.*` | Low-level pad driver wrapper: raw button masks, held/pressed/released edges. Game code should not call it directly. |
 | `source/input_action.*` | Action layer: named actions, one schema table per layout (UI, gameplay A, gameplay B), polling only, menu auto-repeat. |
 | `source/spu.*` | Low-level sound chip driver: uploads to sound RAM, voice key-on/off with pitch and envelope. Game code should not call it directly. |
