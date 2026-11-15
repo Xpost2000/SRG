@@ -6,10 +6,10 @@
 //  SCHEMA TABLES: this is the "config file". Designated initialisers mean
 //  anything not listed is 0 = unbound in that schema.
 //
-//  "Type A" is the default. "Type B" moves the test scene's prop count from
-//  R1 / L1 to R2 / L2, which is enough to show a saved preset taking effect.
-//  D-pad, Start and Select stay put in both so a player can never lose the
-//  menu.
+//  "Type A" is the default. "Type B" mirrors it: face buttons swap
+//  vertically (Cross<->Square, Circle<->Triangle) and every left/right
+//  shoulder and stick-click pair swaps sides. D-pad, Start and Select stay
+//  put in both so a player can never lose the menu.
 // ============================================================================
 
 static const uint16_t g_schemas[INPUT_SCHEMA_COUNT][INPUT_ACTION_COUNT] = {
@@ -27,8 +27,16 @@ static const uint16_t g_schemas[INPUT_SCHEMA_COUNT][INPUT_ACTION_COUNT] = {
     [INPUT_ACTION_MOVE_DOWN]      = PAD_DOWN,
     [INPUT_ACTION_MOVE_LEFT]      = PAD_LEFT,
     [INPUT_ACTION_MOVE_RIGHT]     = PAD_RIGHT,
-    [INPUT_ACTION_MESHES_MORE]    = PAD_R1,
-    [INPUT_ACTION_MESHES_FEWER]   = PAD_L1,
+    [INPUT_ACTION_COLOR_NEXT]     = PAD_CROSS,
+    [INPUT_ACTION_COLOR_PREV]     = PAD_CIRCLE,
+    [INPUT_ACTION_GROW]           = PAD_SQUARE,
+    [INPUT_ACTION_SHRINK]         = PAD_TRIANGLE,
+    [INPUT_ACTION_BOOST]          = PAD_R1,
+    [INPUT_ACTION_SLOW]           = PAD_L1,
+    [INPUT_ACTION_DROP_MARKER]    = PAD_R2,
+    [INPUT_ACTION_CLEAR_MARKERS]  = PAD_L2,
+    [INPUT_ACTION_TOGGLE_OUTLINE] = PAD_R3,
+    [INPUT_ACTION_RESET_POSITION] = PAD_L3,
     [INPUT_ACTION_HELP]           = PAD_SELECT,
     [INPUT_ACTION_PAUSE]          = PAD_START,
   },
@@ -37,8 +45,16 @@ static const uint16_t g_schemas[INPUT_SCHEMA_COUNT][INPUT_ACTION_COUNT] = {
     [INPUT_ACTION_MOVE_DOWN]      = PAD_DOWN,
     [INPUT_ACTION_MOVE_LEFT]      = PAD_LEFT,
     [INPUT_ACTION_MOVE_RIGHT]     = PAD_RIGHT,
-    [INPUT_ACTION_MESHES_MORE]    = PAD_R2,
-    [INPUT_ACTION_MESHES_FEWER]   = PAD_L2,
+    [INPUT_ACTION_COLOR_NEXT]     = PAD_SQUARE,
+    [INPUT_ACTION_COLOR_PREV]     = PAD_TRIANGLE,
+    [INPUT_ACTION_GROW]           = PAD_CROSS,
+    [INPUT_ACTION_SHRINK]         = PAD_CIRCLE,
+    [INPUT_ACTION_BOOST]          = PAD_L1,
+    [INPUT_ACTION_SLOW]           = PAD_R1,
+    [INPUT_ACTION_DROP_MARKER]    = PAD_L2,
+    [INPUT_ACTION_CLEAR_MARKERS]  = PAD_R2,
+    [INPUT_ACTION_TOGGLE_OUTLINE] = PAD_L3,
+    [INPUT_ACTION_RESET_POSITION] = PAD_R3,
     [INPUT_ACTION_HELP]           = PAD_SELECT,
     [INPUT_ACTION_PAUSE]          = PAD_START,
   },

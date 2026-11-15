@@ -256,18 +256,19 @@ char* name = input_action_button_name(input_action_get_schema(P1_PAD), INPUT_ACT
 
 ## The test scene
 
-`source/main.c` is a cube standing on a 3D floor under the follow camera
-(`engine-docs/camera.md`), and it exercises everything above. Start opens a menu where you can
-change layouts and save or load them, and holding Select prints the live bindings straight out of
-the schema table. Run it with `pcsx-run.bat`.
-
-The cube has no controls yet. The D-pad is bound to the `MOVE_*` actions but nothing reads them;
-"Writing the player controls" in `engine-docs/camera.md` covers how to add movement and camera turns.
+`source/main.c` is a controllable box that exercises everything above. Every one of the 16
+buttons does something visible, the two layouts mirror each other, Start opens a menu where you
+can change layouts and save or load them, and holding Select prints the live bindings straight
+out of the schema table. Run it with `pcsx-run.bat`.
 
 | Action | Type A | Type B |
 | --- | --- | --- |
-| Move (bound, unused) | D-pad | D-pad |
-| 3D stress: fewer / more meshes (tap) | L1 / R1 | L2 / R2 |
+| Move | D-pad | D-pad |
+| Colour next / prev (tap) | Cross / Circle | Square / Triangle |
+| Grow / shrink (hold) | Square / Triangle | Cross / Circle |
+| Boost / slow (hold) | R1 / L1 | L1 / R1 |
+| Drop marker / clear markers (tap) | R2 / L2 | L2 / R2 |
+| Toggle outline / reset position (tap) | R3 / L3 | L3 / R3 |
 | Help overlay (hold) | Select | Select |
 | Pause menu | Start | Start |
 

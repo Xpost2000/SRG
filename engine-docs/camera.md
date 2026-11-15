@@ -20,14 +20,16 @@ unit), and angles are 4096 = 360°.
 ## Writing the player controls
 
 The test scene has no player controls yet; the cube stands still and the camera holds on it. The
-camera already has the two calls the controls need, `camera_turn` and `camera_ground_direction`.
-The work is in `scene_update_gameplay` in `source/main.c` and the action tables:
+gameplay input still drives the 2D box test from `engine-docs/input.md`, which gives every button a
+job. The camera already has the two calls the controls need, `camera_turn` and
+`camera_ground_direction`. The work is in `scene_update_gameplay` in `source/main.c` and the action
+tables:
 
-1. **Add the actions.** Append `INPUT_ACTION_RUN`, `INPUT_ACTION_CAMERA_LEFT` and
-   `INPUT_ACTION_CAMERA_RIGHT` to `Input_Action` in `input_action.h`. Bind them in both gameplay
+1. **Free up buttons and add the actions.** The box test uses all 16 buttons, so retire its verbs
+   (COLOR, GROW, MARKER, ...) first. Then add `INPUT_ACTION_RUN`, `INPUT_ACTION_CAMERA_LEFT` and
+   `INPUT_ACTION_CAMERA_RIGHT` to `Input_Action` in `input_action.h`, bind them in both gameplay
    schemas in `input_action.c`, and give them labels in `g_action_labels` in `main.c` so the help
-   overlay shows them. One suggestion is Square / Circle for the turns in Type A and L1 / R1 in
-   Type B, but L1 / R1 and L2 / R2 already change the prop count, so move those first. `MOVE_*` is already bound to the D-pad.
+   overlay shows them. `MOVE_*` is already on the D-pad; it moves the box today.
 2. **Turn the camera** on a tap:
 
    ```c

@@ -44,14 +44,23 @@ enum Input_Action {
   INPUT_ACTION_UI_CANCEL,
   INPUT_ACTION_UI_MENU,
 
-  // Gameplay. These are the test scene's verbs. A real game will replace
-  // them with its own (JUMP, ATTACK, ...).
-  INPUT_ACTION_MOVE_UP,        // bound, but nothing reads them yet: player
-  INPUT_ACTION_MOVE_DOWN,      // controls are still to be written, see
-  INPUT_ACTION_MOVE_LEFT,      // engine-docs/camera.md
+  // Gameplay. These are the test scene's verbs; a real game will replace
+  // them with its own (JUMP, ATTACK, ...). Every physical button has a job
+  // so the scene can demonstrate the whole pad.
+  INPUT_ACTION_MOVE_UP,
+  INPUT_ACTION_MOVE_DOWN,
+  INPUT_ACTION_MOVE_LEFT,
   INPUT_ACTION_MOVE_RIGHT,
-  INPUT_ACTION_MESHES_MORE,    // tap: 3D stress test, more props
-  INPUT_ACTION_MESHES_FEWER,   // tap
+  INPUT_ACTION_COLOR_NEXT,     // tap
+  INPUT_ACTION_COLOR_PREV,     // tap
+  INPUT_ACTION_GROW,           // hold
+  INPUT_ACTION_SHRINK,         // hold
+  INPUT_ACTION_BOOST,          // hold: move faster
+  INPUT_ACTION_SLOW,           // hold: move slower
+  INPUT_ACTION_DROP_MARKER,    // tap: leave a dot where the box is
+  INPUT_ACTION_CLEAR_MARKERS,  // tap
+  INPUT_ACTION_TOGGLE_OUTLINE, // tap: filled <-> hollow box
+  INPUT_ACTION_RESET_POSITION, // tap: back to centre
   INPUT_ACTION_HELP,           // hold: show the live bindings on screen
   INPUT_ACTION_PAUSE,          // tap: open the menu
 
