@@ -33,24 +33,15 @@ struct World_Builder {
 
 World_Builder* world_builder_create(Memory_Arena* arena);
 
-void           world_builder_add_player_spawn(World_Builder* builder,
-                                              int32_t x,
-                                              int32_t y,
-                                              int16_t look_angle);
-
-void           world_builder_add_object_prop(World_Builder* builder,
-                                             int32_t  x,
-                                             int32_t  y,
-                                             uint32_t asset_id,
-                                             uint32_t flags,
-                                             int16_t  angle);
-
-void           world_builder_add_stage_end_region(World_Builder* builder,
-                                                  int32_t x,
-                                                  int32_t y,
-                                                  int32_t w,
-                                                  int32_t h,
-                                                  int32_t next_level_id);
+//
+// entity builders
+//
+void           world_builder_add_player_spawn(World_Builder* builder, int32_t x, int32_t y, int16_t look_angle);
+void           world_builder_add_object_prop(World_Builder* builder, int32_t  x, int32_t  y, uint32_t asset_id, uint32_t flags, int16_t  angle);
+void           world_builder_add_stage_end_region(World_Builder* builder, int32_t x, int32_t y, int32_t w, int32_t h, int32_t next_level_id);
+//
+// end entity builders
+//
 
 void           world_builder_set_dimensions(World_Builder* builder, int32_t w, int32_t h);
 void           world_builder_set_tile(World_Builder* builder, int32_t x, int32_t y, uint8_t tile_id);
