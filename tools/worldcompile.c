@@ -13,11 +13,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 int     tile_count=0;
 int     world_width;
 int     world_height;
 uint8_t tile_data[Kilobyte(16)];
+
+
+//ascii to unsigned
+static uint32_t atou(char* s)
+{
+  uint32_t l;
+  l = strtoul(s, 0, 0);
+  return l;
+}
+
+static int32_t atof_20_12(char* s)
+{
+  return (floorf(atof(s) * 4096));
+}
+
+static int32_t atoang4096(char* s)
+{
+  return floorf((atoi(s)/360.0f) * 4096);
+}
 
 //
 // NOTE(jerry):
@@ -34,7 +54,13 @@ static char* nexttoken(char* s, int* len)
   char        ch;
 
   i = 0;
+  w = 0;
   memset(token, 0, sizeof(token));
+
+  while (s[i] == ' ' || s[i] == '\t') {
+    i++;
+  }
+
   while (1) {
     ch = s[i];
 
@@ -55,20 +81,20 @@ static char* nexttoken(char* s, int* len)
             i++;
             break;
           } else {
-            token[w] = ch;
+            token[w++] = ch;
             i++;
           }
         }
       }
     } else if  (ch == ' ' || ch == '\t') {
-      i++;
+      break;
     } else {
-      token[w] = ch;
+      token[w++] = ch;
       i++;
     } 
   }
 
-  *len = strlen(token);
+  *len = i;
   return token;
 }
 
@@ -86,11 +112,12 @@ static char* readline(FILE* f)
       return NULL;
     }
 
-    if (ch == '\n') {
+    if (ch == '\n' || ch == '0') {
       break;
     }
 
     linebuffer[i] = (char) ch;
+    i++;
   }
 
   return linebuffer;
@@ -105,9 +132,10 @@ void read_tiles(FILE* f)
   int   s;
 
   lines = 0;
+  _debugprintf("reading tiles");
   while ((line = readline(f))) {
     if (strcmp(line, "tiles_end") == 0) {
-      return;
+      break;
     }
 
     s = strlen(line);
@@ -121,6 +149,7 @@ void read_tiles(FILE* f)
 
   world_width = max_x;
   world_height = lines;
+  _debugprintf("World dimensions: %d x %d", world_width, world_height);
 }
 
 void read_entities(FILE* f)
@@ -130,13 +159,18 @@ void read_entities(FILE* f)
   char* tok;
   int   length;
 
+  _debugprintf("reading entities");
   while ((line = readline(f))) {
     if (line[0] == '/' && line[1] == '/') {
       continue; 
     }
 
+    if (line[0] == '\n' || line[0] == 0) {
+      continue;
+    }
+
     if (strcmp(line, "entities_end") == 0) {
-      return;
+      break;
     }
 
     tok = nexttoken(line, &length);
@@ -149,15 +183,15 @@ void read_entities(FILE* f)
 
       tok = nexttoken(line, &length);
       line += length;
-      x = atoi(tok);
+      x = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      y = atoi(tok);
+      y = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      look_angle = atoi(tok);
+      look_angle = atoang4096(tok);
 
       _debugprintf("player_spawn: %d, %d, %d", x, y, look_angle);
     } else if (strcmp(tok, "end_stage_region") == 0) {
@@ -169,19 +203,19 @@ void read_entities(FILE* f)
 
       tok = nexttoken(line, &length);
       line += length;
-      x = atoi(tok);
+      x = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      y = atoi(tok);
+      y = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      w  = atoi(tok);
+      w  = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      h  = atoi(tok);
+      h  = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
@@ -197,25 +231,25 @@ void read_entities(FILE* f)
 
       tok = nexttoken(line, &length);
       line += length;
-      x = atoi(tok);
+      x = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      y = atoi(tok);
+      y = atof_20_12(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      w  = atoi(tok);
+      asset_id  = atoi(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      h  = atoi(tok);
+      flags  = atou(tok);
 
       tok = nexttoken(line, &length);
       line += length;
-      next_level_id = atoi(tok);
+      look_angle = atoang4096(tok);
       
-      _debugprintf("object_prop: %d, %d, %d, %d", x, y, w, h, next_level_id);
+      _debugprintf("object_prop: %d, %d, %d, %d, %d", x, y, asset_id, flags, look_angle);
     }
   }
 }
@@ -224,6 +258,7 @@ static void process_map_file(FILE* f, FILE* fout)
 {
   char* line;
 
+  _debugprintf("processing map file.");
   while ((line = readline(f))) {
     if (line[0] == '/' && line[1] == '/') {
       continue; 
@@ -243,7 +278,7 @@ static void process_map_file(FILE* f, FILE* fout)
 //
 static char* remove_suffix(const char* s)
 {
-  static char* _buff[Kilobyte(4)];
+  static char _buff[Kilobyte(4)];
   int i;
   int slen;
   int dot;
@@ -272,7 +307,7 @@ int main(int argc, char** argv)
   int i;
   FILE* f;
   FILE* fout;
-  char* filebufname[4096];
+  char  filebufname[4096];
 
   if (argc < 2) {
     printf("Usage:\n\t%s <file0.map> ... <file1.map>\n", argv[0]);
@@ -281,6 +316,7 @@ int main(int argc, char** argv)
     return 0;
   }
 
+  _debugprintf("processing (%d) file(s)", argc-1);
   for (i = 1; i < argc; ++i) {
     snprintf(filebufname, sizeof(filebufname), "%s.slvl", remove_suffix(argv[i]));
 
