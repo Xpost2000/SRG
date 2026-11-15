@@ -76,6 +76,12 @@ void world_builder_set_tile(World_Builder* builder, int32_t x, int32_t y, uint8_
   builder->tile_storage[y * builder->width + x] = tile_id;
 }
 
+void world_builder_set_world_tile_data(World_Builder* builder, int32_t w, int32_t h, uint8_t* tile_data)
+{
+  world_builder_set_dimensions(builder, w, h);
+  memcpy(builder->tile_storage, tile_data, w * h * sizeof(uint8_t));
+}
+
 void world_builder_serialize_world(World_Builder* builder, Serializer* serializer)
 {
   World   world_for_header;
@@ -125,4 +131,28 @@ void world_builder_serialize_world(World_Builder* builder, Serializer* serialize
 
     serializer_serialize_bytes(serializer, (uint8_t*) e, e->size - sizeof(entity_header));
   }
+}
+
+int32_t world_builder_get_memory_required(World_Builder* builder)
+{
+  int32_t world_tile_size  = sizeof(uint8_t) * builder->width * builder->height;
+  int32_t base_size        = sizeof(World) + world_tile_size;
+  int32_t total_world_size = base_size + builder->entities_byte_size;
+  return total_world_size;
+}
+
+World* world_builder_build_world_in_memory(World_Builder* builder, uint8_t* memory, uint32_t memory_size)
+{
+  World*     result;
+  Serializer memory_serializer;
+  int32_t    total_world_size = world_builder_get_memory_required(builder);
+
+  assert((memory_size >= (uint32_t)total_world_size) && "[WORLD_BUILDER] not enough memory to store world");
+
+  result = (World*) memory;
+  memory_serializer = serializer_from_memory(memory, memory_size);
+  serializer_set_mode(&memory_serializer, SERIALIZER_MODE_WRITE);
+
+  world_builder_serialize_world(builder, &memory_serializer);
+  return result;
 }

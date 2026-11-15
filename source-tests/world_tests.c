@@ -45,28 +45,10 @@ uint8_t testworld1[8*8] = {
 //
 uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t world_w, int32_t world_h)
 {
-  World*   as_world;
-  uint32_t entity_count;
   uint8_t* result;
   uint8_t* end_alloc;
-  size_t   world_byte_size;
 
-  world_byte_size = sizeof(*world) * world_w * world_h;
-
-  result = memory_arena_push_unaligned(arena, sizeof(*as_world));
-  as_world = (World*) result;
-  entity_count = 0;
-  as_world->version        = WORLD_CURRENT_VERSION;
-
-  world_builder_set_dimensions(world_builder, world_w, world_h);
-
-  //
-  // "allocate" the world
-  //
-  {
-    uint8_t* ptr = world_builder->tile_storage;
-    memcpy(ptr, world, world_byte_size);
-  }
+  world_builder_set_world_tile_data(world_builder, world_w, world_h, world);
 
   //
   // allocate test entities
@@ -76,10 +58,7 @@ uint8_t* setup_simple_world_for_test(size_t* out_size, uint8_t* world, int32_t w
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 4, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_object_prop(world_builder, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 2, 2, 0x0, 2048);
   world_builder_add_stage_end_region(world_builder, WORLD_GRID_UNIT_ONE * 7, WORLD_GRID_UNIT_ONE * 9, WORLD_GRID_UNIT_ONE * 10, WORLD_GRID_UNIT_ONE * 10, -1);
-  
-  as_world->size           = size;
-  as_world->total_size     = total_size;
-  as_world->entities_count = entity_count;
+
   end_alloc = memory_arena_push_unaligned(arena, 0);
   *out_size = (end_alloc - result);
 

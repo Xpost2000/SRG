@@ -54,10 +54,14 @@ void           world_builder_add_stage_end_region(World_Builder* builder,
 
 void           world_builder_set_dimensions(World_Builder* builder, int32_t w, int32_t h);
 void           world_builder_set_tile(World_Builder* builder, int32_t x, int32_t y, uint8_t tile_id);
+void           world_builder_set_world_tile_data(World_Builder* builder, int32_t w, int32_t h, uint8_t* tile_data);
+
+void           world_builder_serialize_world(World_Builder* builder, Serializer* serializer);
 
 //
-// The arena doesn't necessarily have to be the one in World_Builder
+// memory_size should at least be world_builder_get_memory_required
 //
-void           world_builder_serialize_world(World_Builder* builder, Serializer* serializer);
+World*         world_builder_build_world_in_memory(World_Builder* builder, uint8_t* memory, uint32_t memory_size);
+int32_t        world_builder_get_memory_required(World_Builder* builder);
 
 #endif
