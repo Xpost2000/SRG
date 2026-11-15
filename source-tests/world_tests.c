@@ -208,7 +208,7 @@ void test_world_serialization_from_a_file_scenario(void)
   filesystem_close(serializer.file_handle);
   _debugprintf("Test world outputted as \"./world_tests_level.slvl\"");
 
-  _debugprintf("Reopneing test world file.");
+  _debugprintf("Reopening test world file.");
   serializer = serializer_from_file("./testworld.slvl");
   serializer_set_mode(&serializer, SERIALIZER_MODE_READ);
   world = world_read_from_serializer(arena, &serializer);

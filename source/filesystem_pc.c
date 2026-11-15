@@ -52,7 +52,11 @@ File_Handle filesystem_open(const char* filepath)
   for (i = 0; i < MAX_OPENED_FILES; ++i) {
     if (!g_open_files[i].f) {
       Opened_File_State* state = &g_open_files[i];
-      FILE*              f     = fopen(filepath, "rwb+");
+      //
+      // NOTE: the C standard library allows doing this
+      // any '+' mode is technically readable and writable.
+      //
+      FILE*              f     = fopen(filepath, "wb+");
 
       if (!f) {
         _debugprintf("[FILESYSTEM] Failed to open: %s", filepath);
